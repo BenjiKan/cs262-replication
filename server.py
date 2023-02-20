@@ -116,37 +116,39 @@ class AccountHandler:
         if username in self.account_list:
             return False
         self.account_list[username] = password
+        self.is_online[username] = False
         return True
 
     # check if username and password match
-    def login(self, username, password):
+    def login(self, username: str, password: str) -> int:
         """Returns a bunch of status codes:
-        -1: user not found
-        0: incorrect password
-        1: success
+        0: success
+        1: incorrect password
         2: user is already logged in
+        3: user not found
         """
         if not (username in self.account_list):
-            return -1
+            return 3
         chk = self.account_list[username] == password
         if not chk:
-            return 0
+            return 1
         elif (self.is_online[username]):
             return 2
         self.is_online[username] = chk
-        return 1
-
+        return 0
 
     # Moses: will fix below logout/delete account
-    def logout(self, username):
+    def logout(self, username) -> bool:
         # Assumes that the user is already logged in.
         if not (username in self.account_list):
             return False
         if not (self.is_online[username]): # check if logged in
             return False
         self.is_online[username] = False
+        return True
 
     def delete_account(self, username):
+        # Assumes that the user is logged in.
         if not (username in self.account_list):
             return False
         del self.account_list[username]
@@ -179,16 +181,107 @@ class MessageHandler:
         return True
 
 
-def handle_user(usersocket, addr):
+def create_user(c: socket) -> bool:
+    usr_len_bytes = c.recv(2)
+    print(f"User len bytes: {usr_len_bytes}")
+    usr_len = int.from_bytes(usr_len_bytes, byteorder='big')
+    print(f"Decoded length: {usr_len}")
+    username = c.recv(usr_len).decode('utf-8')
+    print(f"Decoded username: {username}")
+
+    pw_len_bytes = c.recv(1)
+    print(f"Pw len bytes: {pw_len_bytes}")
+    pw_len = int.from_bytes(pw_len_bytes, byteorder='big')
+    print(f"Decoded length: {pw_len}")
+    password = c.recv(pw_len).decode('utf-8')
+    print(f"Decoded password: {password}")
+
+    res = account_store._create_account(username, password)
+    c.send(b'1' if res else b'0')
+    return res
+
+def att_login(c: socket) -> bool:
+    usr_len_bytes = c.recv(2)
+    print(f"User len bytes: {usr_len_bytes}")
+    usr_len = int.from_bytes(usr_len_bytes, byteorder='big')
+    print(f"Decoded length: {usr_len}")
+    username = c.recv(usr_len).decode('utf-8')
+    print(f"Decoded username: {username}")
+
+    pw_len_bytes = c.recv(1)
+    print(f"Pw len bytes: {pw_len_bytes}")
+    pw_len = int.from_bytes(pw_len_bytes, byteorder='big')
+    print(f"Decoded length: {pw_len}")
+    password = c.recv(pw_len).decode('utf-8')
+    print(f"Decoded password: {password}")
+    
+    res = account_store.login(username, password)
+    c.send(str(res).encode('ascii'))
+    return res == 0 # only 0 is success
+
+def handle_user(usersocket, addr): # thread for user
     print(f"User connected at {addr}")
 
-    connected = True;
-    while connected:
-        # client will send an encoded message across
+    # send that the user is connected
+    usersocket.send("Connected".encode("ascii"))
+    logged_in = False
+    while True: # pre-login
+        mode = usersocket.recv(1)
+        if not mode:
+            print(f"Closing connection at {addr}")
+            break
+        if mode.decode('ascii') == "1":
+            create_user(usersocket)
+            print("All users:")
+            print(account_store.account_list)
+        elif mode.decode('ascii') == "2":
+            att_login(usersocket)
+            pass
+        else: # option 3. Exit
+            print(f"Closing connection at {addr}")
+            break
+
+    while logged_in: # if logged in, do stuff
         pass
-        # msglen = usersocket.recv
+
+    usersocket.close()
+    return
+    while logged_in:
+        pass
+
+    usersocket.close()
 
 def Main():
+    # host and port defined in constants
+
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.bind((HOST, PORT))
+    print("socket binded to port", PORT)
+ 
+    # put the socket into listening mode
+    s.listen(5)
+    print("socket is listening")
+ 
+    # a forever loop until client wants to exit
+    try:
+        while True:
+    
+            # establish connection with client
+            c, addr = s.accept()     
+            print('Connected to :', addr[0], ':', addr[1])
+    
+            # Start a new thread and return its identifier
+            start_new_thread(handle_user, (c,addr))
+    except KeyboardInterrupt:
+        s.close()
+        return
+    except Exception as e:
+        print(e)
+        s.close()
+        return
+    s.close()
+
+def bankMain():
 
     # host and port defined in constants
 
@@ -202,11 +295,11 @@ def Main():
  
     # a forever loop until client wants to exit
     while True:
- 
+
         # establish connection with client
         c, addr = s.accept()     
         print('Connected to :', addr[0], ':', addr[1])
- 
+
         # Start a new thread and return its identifier
         start_new_thread(threaded, (c,))
     s.close()
