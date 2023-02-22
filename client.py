@@ -130,22 +130,27 @@ cross_message_q = deque() # Handles server -> client messages
 def recv_handler_thread(s: socket.socket):
 	# We make sure that all recv calls are kept to here.
 	# Other parts can recv by using the queues
-	print("Thread created")
+	#print("Thread created")
 	while True:
 		cur = s.recv(1) # receive status byte
 		if not cur:
 			continue
-		print("RECEIVED A BYTE: ", cur)
+		#print("RECEIVED A BYTE: ", cur)
 		if cur == CLIENT_LOGGING_OUT:
-			print("CLOSING THREAD")
+			#print("CLOSING THREAD")
 			return
-		elif cur in [CLIENT_MESSAGE_APPROVED, CLIENT_MESSAGE_REJECTED, CLIENT_MESSAGE_SENDING_INFO]:
+		elif cur in [CLIENT_MESSAGE_APPROVED, CLIENT_MESSAGE_REJECTED,
+		             CLIENT_MESSAGE_SENDING_INFO, CLIENT_RETRIEVE_ACCOUNT_LIST,
+					 CLIENT_ACCOUNT_SENDING]:
 			client_q_lock.acquire()
-			client_interactions_q.append(cur)
 			if cur == CLIENT_MESSAGE_SENDING_INFO:
 				cur = s.recv(1024)
-				client_interactions_q.pop() # remove CLIENT_MESSAGE_SENDING_INFO bit
-				client_interactions_q.append(cur)
+			elif cur == CLIENT_RETRIEVE_ACCOUNT_LIST:
+				cur = s.recv(CLIENT_ACCOUNT_LIST_NBYTES)
+			elif cur == CLIENT_ACCOUNT_SENDING:
+				n_cur = s.recv(CLIENT_ACCOUNT_LIST_NBYTES)
+				cur = s.recv(int.from_bytes(n_cur, byteorder='little'))
+			client_interactions_q.append(cur)
 			client_q_lock.release()
 		elif cur in [SERVER_SENDING_MESSAGE]:
 			msg_q_lock.acquire()
@@ -218,10 +223,6 @@ def send_new_msg(s: socket.socket) -> bool:
 	# no more handling to do on client end
 	return
 
-
-
-
-
 def delete_account(s: socket.socket) -> bool:
 	print("Are you sure you want to delete your account?")
 	username = input("Enter username to confirm: ")
@@ -241,6 +242,16 @@ def delete_account(s: socket.socket) -> bool:
 	retstr = client_get_response()
 	print(retstr.decode('ascii'))
 	return ret == CLIENT_MESSAGE_APPROVED
+
+def print_all_users(s: socket.socket, username: str) -> bool: # done
+	n_users = client_get_response()
+	n_users = int.from_bytes(n_users, byteorder='little')
+	user_list = ["All registered users:"]
+	for i in range(n_users):
+		user_list.append(client_get_response().decode('utf-8'))
+		if user_list[-1] == username:
+			user_list[-1] += " (you!)"
+	print("\n  ".join(user_list))
 
 def Main():
 	s = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
@@ -281,9 +292,9 @@ def Main():
 
 		while logged_in:
 			print(f"Logged in as {cur_user}")
-			print("Options:\n1. Send message\n2. Delete account\n3. Logout")
+			print("Options:\n1. Send message\n2. Delete account\n3. List all users\n4. Logout")
 			choice = ""
-			while choice not in ["1", "2", "3"]:
+			while choice not in ["1", "2", "3", "4"]:
 				if choice != "":
 					print("Please select a valid option.")
 				choice = input("Select choice:")
@@ -297,18 +308,17 @@ def Main():
 					# message from CLIENT_LOGGING_OUT byte
 					s.send(CLIENT_MESSAGE_APPROVED)
 					logged_in = False
-			else: # choice == '3'
+			elif choice == '3': 
+				s.send(choice.encode('ascii'))
+				print_all_users(s, cur_user)
+			else: # choice == '4'
 				ans = input("Are you sure you want to logout? (enter 'y' to confirm) ")
 				if (ans != 'y'):
 					continue
 				s.send(choice.encode('ascii'))
 				logged_in, cur_user = False, None
 				print("Logging out...")
-	
-	
-	# s.send()
-		
-	# s.send()
+			print()
 
 	try:
 		while True:

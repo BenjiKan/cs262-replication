@@ -21,6 +21,7 @@ p_lock = threading.Lock()
 # import constants
 from constants import *
 
+from handlers import *
 
 
 # log in function
@@ -40,117 +41,9 @@ from constants import *
 # delete account function
 # deletes account if successful, false otherwise
 
-
-class AccountHandler:
-    def __init__(self, store = {}):
-        self.account_list = store # username: password
-        # username: currently online or not
-        self.is_online = {usr: False for usr in self.account_list.keys()}
-        self.sock = {usr: None for usr in self.account_list.keys()}
-    
-    def _create_account(self, username, password):
-        if username in self.account_list:
-            return False
-        self.account_list[username] = password
-        self.is_online[username] = False
-        self.sock[username] = None
-        return True
-
-    def user_exists(self, username):
-        return username in self.account_list
-    
-    def is_online(self, username):
-        if not self.user_exists(username): return False
-        return self.is_online[username]
-
-    # check if username and password match
-    def login(self, username: str, password: str) -> int:
-        """Returns a bunch of status codes:
-        0: success
-        1: incorrect password
-        2: user is already logged in
-        3: user not found
-        """
-        if not (username in self.account_list):
-            return 3
-        chk = self.account_list[username] == password
-        if not chk:
-            return 1
-        elif (self.is_online[username]):
-            return 2
-        self.is_online[username] = chk
-        return 0
-
-    def update_sock(self, username: str, c: Optional[socket.socket]):
-        self.sock[username] = c
-
-    # Moses: will fix below logout/delete account
-    def logout(self, username) -> bool:
-        # Assumes that the user is already logged in.
-        if not (username in self.account_list):
-            return False
-        if not (self.is_online[username]): # check if logged in
-            return False
-        self.is_online[username] = False
-        self.update_sock(username, None)
-        return True
-
-    def delete_account(self, username):
-        """
-        Attempts to delete account identified by username
-        @username: username to delete
-        Returns True if deletion is successful
-        """
-        # Assumes that the user is logged in.
-        if not (username in self.account_list):
-            return False
-        del self.account_list[username]
-        del self.is_online[username]
-        del self.sock[username]
-        return True
-
     
 # Message Storing mechanisms below
 account_store = AccountHandler()
-
-class Message:
-    def __init__(self, sender, content, id, prv):
-        self.sender = sender
-        self.content = content
-        self.id = id 
-        self.prv = prv
-
-class MessageHandler:
-    def __init__(self, store = {}):
-        self.message_store = store # username: [message, message, ...]
-        self.message_count = 0
-
-    def _store_message(self, username, message: Message):
-        prv = -1;
-        if not (username in self.message_store):
-            self.message_store[username] = []
-        else:
-            prv = self.message_store[username][-1].id
-        self.message_store[username].append(message)
-        return True
-
-    def _get_messages(self, username):
-        if not (username in self.message_store):
-            return []
-        return self.message_store[username]
-
-    def _delete_messages(self, username):
-        if not (username in self.message_store):
-            return False
-        del self.message_store[username]
-        return True
-
-    def push_new_message(self, recipient, sender, body):
-        p_lock.acquire()
-        self._store_message(recipient,
-                            Message(sender, body, self.message_count, -1))
-        self.message_count += 1
-        p_lock.release()
 
 message_handler = MessageHandler()
 
@@ -342,8 +235,6 @@ def user_send_msg(c: socket.socket, sender: str) -> bool:
     print(message_handler.message_store)
     
 
-def list_all_users(c: socket.socket):
-    pass
 def att_delete_account(c: socket.socket, username: str) -> bool:
     usr_len_bytes = c.recv(1024)
     usr_len = -1
@@ -375,6 +266,19 @@ def att_delete_account(c: socket.socket, username: str) -> bool:
     c.send(msg.encode('ascii'))
     return True
     
+def list_all_users(c: socket.socket):
+    num_users = len(account_store.account_list)
+    num_users_bytes = num_users.to_bytes(CLIENT_ACCOUNT_LIST_NBYTES, byteorder='little')
+    c.send(CLIENT_RETRIEVE_ACCOUNT_LIST)
+    c.send(num_users_bytes)
+    for username in account_store.account_list:
+        c.send(CLIENT_ACCOUNT_SENDING)
+        usr = username.encode('utf-8')
+        usr_len = len(usr)
+        c.send(usr_len.to_bytes(CLIENT_ACCOUNT_LIST_NBYTES, byteorder='little'))
+        c.send(usr)
+    pass
+
 def handle_user(c, addr): # thread for user
     print(f"User connected at {addr}")
 
@@ -419,7 +323,9 @@ def handle_user(c, addr): # thread for user
                     cur_user = None
                 print("All users:")
                 print(account_store.account_list)
-            else:
+            elif mode == "3":
+                list_all_users(c)
+            else: # mode == "4"
                 c.send(CLIENT_LOGGING_OUT)
                 account_store.logout(cur_user)
                 print(f"User at {addr} logged out from {cur_user}")
