@@ -7,7 +7,6 @@ import os
 # import mysql.connector
 import random
 
-from typing import Optional
  
 # import thread module
 from _thread import *
@@ -46,22 +45,13 @@ class AccountHandler:
         self.account_list = store # username: password
         # username: currently online or not
         self.is_online = {usr: False for usr in self.account_list.keys()}
-        self.sock = {usr: None for usr in self.account_list.keys()}
     
     def _create_account(self, username, password):
         if username in self.account_list:
             return False
         self.account_list[username] = password
         self.is_online[username] = False
-        self.sock[username] = None
         return True
-
-    def user_exists(self, username):
-        return username in self.account_list
-    
-    def is_online(self, username):
-        if not self.user_exists(username): return False
-        return self.is_online[username]
 
     # check if username and password match
     def login(self, username: str, password: str) -> int:
@@ -81,9 +71,6 @@ class AccountHandler:
         self.is_online[username] = chk
         return 0
 
-    def update_sock(self, username: str, c: Optional[socket.socket]):
-        self.sock[username] = c
-
     # Moses: will fix below logout/delete account
     def logout(self, username) -> bool:
         # Assumes that the user is already logged in.
@@ -92,45 +79,27 @@ class AccountHandler:
         if not (self.is_online[username]): # check if logged in
             return False
         self.is_online[username] = False
-        self.update_sock(username, None)
         return True
 
     def delete_account(self, username):
-        """
-        Attempts to delete account identified by username
-        @username: username to delete
-        Returns True if deletion is successful
-        """
         # Assumes that the user is logged in.
         if not (username in self.account_list):
             return False
         del self.account_list[username]
         del self.is_online[username]
-        del self.sock[username]
         return True
 
     
 # Message Storing mechanisms below
 account_store = AccountHandler()
 
-class Message:
-    def __init__(self, sender, content, id, prv):
-        self.sender = sender
-        self.content = content
-        self.id = id 
-        self.prv = prv
-
 class MessageHandler:
     def __init__(self, store = {}):
         self.message_store = store # username: [message, message, ...]
-        self.message_count = 0
 
-    def _store_message(self, username, message: Message):
-        prv = -1;
+    def _store_message(self, username, message):
         if not (username in self.message_store):
             self.message_store[username] = []
-        else:
-            prv = self.message_store[username][-1].id
         self.message_store[username].append(message)
         return True
 
@@ -145,25 +114,17 @@ class MessageHandler:
         del self.message_store[username]
         return True
 
-    def push_new_message(self, recipient, sender, body):
-        p_lock.acquire()
-        self._store_message(recipient,
-                            Message(sender, body, self.message_count, -1))
-        self.message_count += 1
-        p_lock.release()
 
-message_handler = MessageHandler()
-
-def create_user(c: socket.socket) -> bool:
+def create_user(c: socket) -> bool:
     usr_len_bytes = c.recv(1024)
     usr_len = -1
-    client_send_msg = CLIENT_MESSAGE_APPROVED
+    client_send_msg = b'1'
     if len(usr_len_bytes) > 1: # username is definitely too long, > 256
-        client_send_msg = CLIENT_MESSAGE_REJECTED
+        client_send_msg = b'0'
     else:
         usr_len = int.from_bytes(usr_len_bytes, byteorder='little')
         if usr_len > 50:
-            client_send_msg = CLIENT_MESSAGE_REJECTED
+            client_send_msg = b'0'
             usr_len = -1
     c.send(client_send_msg)
     if usr_len < 0:
@@ -173,17 +134,17 @@ def create_user(c: socket.socket) -> bool:
         return False
     usr_utf8 = c.recv(usr_len)
     username = usr_utf8.decode('utf-8')
-    c.send(CLIENT_MESSAGE_APPROVED) # send username received
+    c.send(b'1') # send username received
 
     pw_len_bytes = c.recv(1024)
     pw_len = -1
-    client_send_msg = CLIENT_MESSAGE_APPROVED
+    client_send_msg = b'1'
     if len(pw_len_bytes) > 1: # password > 256 characters
-        client_send_msg = CLIENT_MESSAGE_REJECTED
+        client_send_msg = b'0'
     else:
         pw_len = int.from_bytes(pw_len_bytes, byteorder='little')
         if pw_len > 24 or pw_len < 6:
-            client_send_msg = CLIENT_MESSAGE_REJECTED
+            client_send_msg = b'0'
             pw_len = -1
     c.send(client_send_msg)
     if pw_len < 0:
@@ -193,17 +154,17 @@ def create_user(c: socket.socket) -> bool:
         return False;
     pw_utf8 = c.recv(pw_len)
     password = pw_utf8.decode('utf-8')
-    c.send(CLIENT_MESSAGE_APPROVED) # send pw received
+    c.send(b'1') # send pw received
 
     cnfm_pw_len_bytes = c.recv(1024)
     cnfm_pw_len = -1
-    client_send_msg = CLIENT_MESSAGE_APPROVED
+    client_send_msg = b'1'
     if len(cnfm_pw_len_bytes) > 1: # password > 256 characters
-        client_send_msg = CLIENT_MESSAGE_REJECTED
+        client_send_msg = b'0'
     else:
         cnfm_pw_len = int.from_bytes(cnfm_pw_len_bytes, byteorder='little')
         if cnfm_pw_len > 24 or cnfm_pw_len < 6:
-            client_send_msg = CLIENT_MESSAGE_REJECTED
+            client_send_msg = b'0'
             cnfm_pw_len = -1
     c.send(client_send_msg)
     if cnfm_pw_len < 0:
@@ -224,20 +185,20 @@ def create_user(c: socket.socket) -> bool:
             msg = "User successfully created"
         else:
             msg = "User already exists"
-    c.send(CLIENT_MESSAGE_APPROVED if res else CLIENT_MESSAGE_REJECTED)
+    c.send(b'1' if res else b'0')
     c.send(msg.encode("ascii"))
     return res
 
-def att_login(c: socket.socket) -> bool:
+def att_login(c: socket) -> bool:
     usr_len_bytes = c.recv(1024)
     usr_len = -1
-    client_send_msg = CLIENT_MESSAGE_APPROVED
+    client_send_msg = b'1'
     if len(usr_len_bytes) > 1: # username is definitely too long, > 256
-        client_send_msg = CLIENT_MESSAGE_REJECTED
+        client_send_msg = b'0'
     else:
         usr_len = int.from_bytes(usr_len_bytes, byteorder='little')
         if usr_len > 50:
-            client_send_msg = CLIENT_MESSAGE_REJECTED
+            client_send_msg = b'0'
             usr_len = -1
     c.send(client_send_msg)
     if usr_len < 0:
@@ -247,19 +208,19 @@ def att_login(c: socket.socket) -> bool:
         return False
     usr_utf8 = c.recv(usr_len)
     username = usr_utf8.decode('utf-8')
-    c.send(CLIENT_MESSAGE_APPROVED) # send username received
+    c.send(b'1') # send username received
 
     pw_len_bytes = c.recv(1024)
     pw_len = -1
-    client_send_msg = CLIENT_MESSAGE_APPROVED
+    client_send_msg = b'1'
     if len(pw_len_bytes) > 1: # password > 256 characters
-        client_send_msg = CLIENT_MESSAGE_REJECTED
+        client_send_msg = b'0'
     else:
         pw_len = int.from_bytes(pw_len_bytes, byteorder='little')
         if pw_len > 100:
             # potentially malicious input. We specified in user creation that
             # passwords were 6-24 characters
-            client_send_msg = CLIENT_MESSAGE_REJECTED
+            client_send_msg = b'0'
             pw_len = -1
     c.send(client_send_msg)
     if pw_len < 0:
@@ -269,12 +230,12 @@ def att_login(c: socket.socket) -> bool:
         return False;
     pw_utf8 = c.recv(pw_len)
     password = pw_utf8.decode('utf-8')
-    c.send(CLIENT_MESSAGE_APPROVED) # send pw received
+    c.send(b'1') # send pw received
     
     res = account_store.login(username, password)
     if res == 0:
         msg = "Login successful."
-        account_store.update_sock(username, c)
+        logged_in = True
     elif res == 1:
         msg = "Incorrect password."
     elif res == 2:
@@ -283,152 +244,38 @@ def att_login(c: socket.socket) -> bool:
         msg = "User does not exist."
     c.send(str(res).encode('ascii'))
     c.send(msg.encode('ascii'))
-    return (res == 0), username
 
-def attempt_deliver_messages(sender):pass
-
-def user_send_msg(c: socket.socket, sender: str) -> bool:
-    print("Start receive message")
-    usr_len_bytes = c.recv(1024)
-    usr_len = -1
-    client_send_msg = CLIENT_MESSAGE_APPROVED
-    if len(usr_len_bytes) > 1:
-        client_send_msg = CLIENT_MESSAGE_REJECTED
-    else:
-        usr_len = int.from_bytes(usr_len_bytes, byteorder='little')
-        if usr_len > 50:
-            client_send_msg = CLIENT_MESSAGE_REJECTED
-            usr_len = -1
-    c.send(client_send_msg)
-    if usr_len < 0: # Rejected case
-        c.send(CLIENT_MESSAGE_SENDING_INFO)
-        msg = "User not found"
-        c.send(msg.encode('ascii'))
-        return False
-    usr_utf8 = c.recv(usr_len)
-    recipient = usr_utf8.decode('utf-8')
-    if not account_store.user_exists(recipient):
-        c.send(CLIENT_MESSAGE_REJECTED)
-        c.send(CLIENT_MESSAGE_SENDING_INFO)
-        msg = "Recipient does not exist"
-        c.send(msg.encode('ascii'))
-        return
-    else:
-        c.send(CLIENT_MESSAGE_APPROVED)
-    # Handling recipient done, now handle receive messages
-    num_chunk_bytes = c.recv(1024)
-    num_chunks = int.from_bytes(num_chunk_bytes, byteorder="little")
-    if num_chunks > MAX_MSG_CHUNK or num_chunks <= 0:
-        # Next two lines emptys the socket send queue, in case client sends a ton of data
-        tmp = c.recv(1024)
-        while tmp: tmp = c.recv(1024)
-        c.send(CLIENT_MESSAGE_REJECTED)
-        c.send(CLIENT_MESSAGE_SENDING_INFO)
-        msg = "Message is too long to send"
-        c.send(msg.encode('ascii'))
-        return
-    else:
-        c.send(CLIENT_MESSAGE_APPROVED)
-    complete_msg = [num_chunk_bytes]
-    for i in range(num_chunks):
-        msg_len_bytes = c.recv(1024)
-        c.send(CLIENT_MESSAGE_APPROVED)
-        msg_len = int.from_bytes(msg_len_bytes, byteorder="little")
-        msg_utf8 = c.recv(msg_len).decode('utf-8')
-        complete_msg.append(msg_utf8)
-        c.send(CLIENT_MESSAGE_APPROVED)
-    message_handler.push_new_message(recipient, sender, complete_msg)
-    print(f"Have {message_handler.message_count} messages")
-    print(message_handler.message_store)
-    
-
-def list_all_users(c: socket.socket):
-    pass
-def att_delete_account(c: socket.socket, username: str) -> bool:
-    usr_len_bytes = c.recv(1024)
-    usr_len = -1
-    if not usr_len_bytes:
-        pass
-    elif len(usr_len_bytes) <= 1: #Within allowable range
-        usr_len = int.from_bytes(usr_len_bytes, byteorder='little')
-        if usr_len > 50:
-            usr_len = -1
-    if usr_len < 0: # Rejected case
-        c.send(CLIENT_MESSAGE_REJECTED)
-        c.send(CLIENT_MESSAGE_SENDING_INFO)
-        msg = "Confirmation failed - invalid input"
-        c.send(msg.encode('ascii'))
-        return False
-    # Passes initial check, get username
-    c.send(CLIENT_MESSAGE_APPROVED)
-    usr_utf8 = c.recv(usr_len)
-    cmp_usr = usr_utf8.decode('utf-8')
-    if cmp_usr != username or (not account_store.delete_account(username)):
-        c.send(CLIENT_MESSAGE_REJECTED)
-        c.send(CLIENT_MESSAGE_SENDING_INFO)
-        msg = "Confirmation failed -- invalid username"
-        c.send(msg.encode('ascii'))
-        return False
-    c.send(CLIENT_MESSAGE_APPROVED)
-    c.send(CLIENT_MESSAGE_SENDING_INFO)
-    msg = "Confirmed -- user successfully deleted"
-    c.send(msg.encode('ascii'))
-    return True
-    
-def handle_user(c, addr): # thread for user
+def handle_user(usersocket, addr): # thread for user
     print(f"User connected at {addr}")
 
     # send that the user is connected
-    c.send("Connected".encode("ascii"))
+    usersocket.send("Connected".encode("ascii"))
     logged_in = False
-    cur_user = None
-    while not logged_in: # pre-login
-        mode = c.recv(1)
+    while True: # pre-login
+        mode = usersocket.recv(1)
         if not mode:
             print(f"Closing connection at {addr}")
             break
         if mode.decode('ascii') == "1":
-            create_user(c)
+            create_user(usersocket)
             print("All users:")
             print(account_store.account_list)
         elif mode.decode('ascii') == "2":
-            logged_in, cur_user = att_login(c)
+            att_login(usersocket)
+            pass
         else: # option 3. Exit
             print(f"Closing connection at {addr}")
             break
-    
-        # Only do the below if logged in, otherwise skip and
-        # repeat user login procedures
-        if (logged_in):
-            print(f"User from {addr} logged in as {cur_user}")
 
-        while logged_in: # if logged in, do stuff
-            mode = c.recv(1)
-            if not mode:
-                print(f"Closing connection at {addr}")
-                break
-            mode = mode.decode('ascii')
-            print(f"User at {addr}: {mode}")
-            if mode == "1":
-                user_send_msg(c, cur_user)
-            elif mode == "2":
-                if (att_delete_account(c, cur_user)):
-                    mode = c.recv(1) # used for blocking purposes
-                    c.send(CLIENT_LOGGING_OUT)
-                    logged_in = False
-                    cur_user = None
-                print("All users:")
-                print(account_store.account_list)
-            else:
-                c.send(CLIENT_LOGGING_OUT)
-                account_store.logout(cur_user)
-                print(f"User at {addr} logged out from {cur_user}")
-                logged_in = False
-                cur_user = None
-                break
+    while logged_in: # if logged in, do stuff
+        pass
 
-    c.close()
+    usersocket.close()
     return
+    while logged_in:
+        pass
+
+    usersocket.close()
 
 def Main():
     # host and port defined in constants
