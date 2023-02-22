@@ -133,32 +133,16 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
         logging.info("IncomingStream called for user %s", request.username)
 
         username = request.username
-
-        # if user is online, send messages
-        while self.user_is_online[username]:
-            while len(self.messages[username]) > 0: # if pending messages
-                message = self.messages[username].pop(0)
-                print("Sending/queuing message to user %s: \"%s\"" % (username, message))
-                yield chatroom_pb2.Message(senderusername="", receiverusername=username, message=message)
-            time.sleep(1)
-
-
-    # def DeliverMessage(self, request, context):
-    #     """
-    #     Delivers a message to the given user.
-    #     """
-    #     username = request.username
-    #     if username not in self.user_passwords:
-    #         return chatroom_pb2.requestReply(status=0, message="Username does not exist")
-    #     # if user is offline, queue message
-    #     if not self.user_is_online[username]:
-    #         return chatroom_pb2.requestReply(status=0, message="User is offline")
-    #     # if user is online, send message
-    #     else:
-    #         self.lock.acquire()
-    #         message = self.messages[username].pop(0)
-    #         self.lock.release()
-    #         return chatroom_pb2.requestReply(status=1, message=message)
+        try: 
+            # if user is online, send messages
+            while self.user_is_online[username]:
+                while len(self.messages[username]) > 0: # if pending messages
+                    message = self.messages[username].pop(0)
+                    print("Sending/queuing message to user %s: \"%s\"" % (username, message))
+                    yield chatroom_pb2.Message(senderusername="", receiverusername=username, message=message)
+                time.sleep(1)
+        except: # catch errors after an account is deleted
+            print("no stream")
     
     
 def serve():

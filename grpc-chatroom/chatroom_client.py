@@ -10,8 +10,12 @@ import time
 from inputimeout import inputimeout
 import sys
 
+TIMEOUT = 30 # seconds before auto-log out
 
 def CreateUser(stub):
+    """
+    Creates a new user with the given username and password.
+    """
     username = input("Enter a username: ")
     password = input("Enter a password: ")
     response = stub.CreateUser(chatroom_pb2.User(username=username, password=password))
@@ -19,6 +23,9 @@ def CreateUser(stub):
     print(response.message)
 
 def Login(stub, status):
+    """
+    Logs in the user with the given username and password.
+    """
     if status!=None:
         print("You are already logged in as " + status + ". Please log out first.")
         return status
@@ -39,6 +46,9 @@ def Login(stub, status):
 
 
 def Logout(stub, status):
+    """
+    Logs out the user with the given username.
+    """
     if status==None:
         print("You are not logged in.")
         return status
@@ -49,6 +59,9 @@ def Logout(stub, status):
         return logged_in
 
 def ListUsers(stub):
+    """
+    Lists all users in the server. No need for login.
+    """
     partial = input("Enter a partial username (press enter if you want to see all users): ")
     if len(partial) == 0:
         response = stub.ListUsers(chatroom_pb2.UserList(partialusername=""))
@@ -57,8 +70,12 @@ def ListUsers(stub):
     print(response.message)
 
 def DeleteUser(stub, status):
+    """
+    Deletes the user with the given username.
+    """
+    # must be logged in to delete
     if status==None:
-        print("You are not logged in.")
+        print("You are not logged in.") 
         return status
     cnfm_username = input("Type your username if you are sure you want to delete this account: ")
     if cnfm_username != status:
@@ -72,6 +89,9 @@ def DeleteUser(stub, status):
             return logged_in
 
 def SendMessage(stub, status):
+    """
+    Sends a message from the logged in user to the given user.
+    """
     if status==None:
         print("You are not logged in.")
         return status
@@ -84,33 +104,41 @@ def SendMessage(stub, status):
     print(response.message)
 
 def CheckMessages(stub, status, listening):
+    """
+    Checks for messages from the logged in user. Called by thread in background.
+    """
     if status==None:
         print("You are not logged in.")
         return status
-    for message in listening: 
-        print("\n"+message.message)
+    try:
+        for message in listening: 
+            print("\n"+message.message)
+    except: # if account is deleted, no error.
+        print("no listening found. break")
 
 
     
 def run():
     with grpc.insecure_channel('localhost:50054') as channel:
         stub = chatroom_pb2_grpc.ChatRoomStub(channel)
-        logged_in = None
+        logged_in = None # username if logged in
 
         while True:
+            # Print command prompt with username if logged in
             if logged_in==None:
                 print("\nYou are not logged in.")
             else:
                 print("\nYou are logged in as " + logged_in)
             # request = input("Enter a command: ")
             try:
-                request = inputimeout(prompt="Enter a command: ", timeout=30) # automatic logout after 30 seconds
+                request = inputimeout(prompt="Enter a command: ", timeout=TIMEOUT) # automatic logout after 30 seconds
             except Exception:
                 if logged_in!=None:
                     print("Timed out, logging out...")
                     logged_in = Logout(stub, status=logged_in)
                 continue
 
+            # Menu of possible commands
 
             if request == "quit":
                 sys.exit(0)
