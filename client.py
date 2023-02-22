@@ -13,6 +13,10 @@ from constants import *
 from typing import List
 from collections import deque
 
+debugprint = print
+debugprint = lambda *args: None
+# uncomment the line above when not debugging
+
 def split_string_length(s: str, l: int = MAX_MSG_LENGTH) -> List[str]:
 	"""
 	Splits s into an array of strings each of length at most l.
@@ -46,6 +50,7 @@ def create_user(s: socket.socket) -> bool:
 	s.send(usrn_utf8)
 	ret = s.recv(1)
 	
+	# Handle password input)
 	password = input("Enter password: ")
 	cnfm_pw = input("Confirm password: ")
 	pw_utf8 = password.encode('utf-8')
@@ -116,7 +121,7 @@ def att_login(s: socket.socket) -> int:
 	ret = s.recv(1)
 
 	# Check return status
-	res = s.recv(1).decode('ascii')
+	res = s.recv(1).decode('ascii') #Server message is not very long -- see server code
 	ln = int.from_bytes(s.recv(1), byteorder="little")
 	resmsg = s.recv(ln)
 	print(resmsg.decode('ascii'))
@@ -138,11 +143,13 @@ def recv_handler_thread(s: socket.socket):
 			continue
 		#print("RECEIVED A BYTE: ", cur)
 		if cur in [SERVER_SENDING_MESSAGE]:
-			print("Acquiring messages")
+			# Handles messages that come directly without client requests
+			# e.g. receiving a message from another user
+			debugprint("Acquiring messages")
 			cur = s.recv(2, socket.MSG_PEEK)
-			print(cur, cur[1:])
+			debugprint(cur, cur[1:])
 			ln = int.from_bytes(cur[1:], byteorder="little")
-			print(cur)
+			debugprint(cur)
 			cur = s.recv(2 + ln)
 			sender = cur[2:].decode('utf-8')
 			cur = s.recv(2, socket.MSG_PEEK) # check for chunk size
@@ -179,7 +186,7 @@ def recv_handler_thread(s: socket.socket):
 				client_interactions_q.append(cur)
 				client_q_lock.release()
 			else:
-				print("Ill-formed response received from server")
+				debugprint("Ill-formed response received from server")
 
 def client_get_response():
 	elt = None
@@ -205,9 +212,9 @@ def send_new_msg(s: socket.socket) -> bool:
 	rec_len = len(rec_utf8)
 	rec_len_bytelength = (rec_len.bit_length() + 7) // 8 # rounds up, integer division
 	rec_len_bytes = rec_len.to_bytes(rec_len_bytelength, byteorder='little')
-	print("Sending bytes", rec_len_bytes)
+	debugprint("Sending bytes", rec_len_bytes)
 	s.send(rec_len_bytes)
-	print("sent")
+	debugprint("sent")
 	ret = client_get_response() # expect 1 bit from server
 	if ret == CLIENT_MESSAGE_REJECTED:
 		retstr = client_get_response()
@@ -284,9 +291,9 @@ def Main():
 
 	s.connect((HOST, PORT))
 	status = s.recv(1024)
-	print('receive status')
+	debugprint('receive status')
 	if status.decode("ascii") == "Connected":
-		print("Connection successful")
+		debugprint("Connection successful")
 
 	logged_in = False
 	cur_user = None

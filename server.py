@@ -25,29 +25,18 @@ from constants import *
 from handlers import *
 
 
-# log in function
-# logins in user if username and password are correct
-# returns true if successful, false otherwise. Save as Global Variable
-# for future operations, CHECK IF LOGGED IN, then do operations
-
-# receive messages
-# returns list of messages (with sender, timestamp) if successful, false otherwise
-
-# send messages
-# sends message to specified user if they exist
-
-# log out function
-# logs out user if successful, false otherwise
-
-# delete account function
-# deletes account if successful, false otherwise
-
+debugprint = print
+debugprint = lambda *args: None
+# uncomment the line above when not debugging
     
 # Message Storing mechanisms below
 account_store = AccountHandler()
 
 message_handler = MessageHandler()
 
+##### Helper Functions
+
+# Creates a user, taking inputs from socket c
 def create_user(c: socket.socket) -> bool:
     usr_len_bytes = c.recv(1024)
     usr_len = -1
@@ -62,7 +51,7 @@ def create_user(c: socket.socket) -> bool:
     c.send(client_send_msg)
     if usr_len < 0:
         msg = "Username is too long"
-        print(msg)
+        debugprint(msg)
         c.send(msg.encode('ascii'))
         return False
     usr_utf8 = c.recv(usr_len)
@@ -82,7 +71,7 @@ def create_user(c: socket.socket) -> bool:
     c.send(client_send_msg)
     if pw_len < 0:
         msg = "Password must be between 6 and 24 characters"
-        print(msg)
+        debugprint(msg)
         c.send(msg.encode('ascii'))
         return False;
     pw_utf8 = c.recv(pw_len)
@@ -102,12 +91,12 @@ def create_user(c: socket.socket) -> bool:
     c.send(client_send_msg)
     if cnfm_pw_len < 0:
         msg = "Password must be between 6 and 24 characters"
-        print(msg)
+        debugprint(msg)
         c.send(msg.encode('ascii'))
         return False;
     cnfm_pw_utf8 = c.recv(cnfm_pw_len)
     cnfmpw = cnfm_pw_utf8.decode('utf-8')
-    print(f"Decoded confirm: {cnfmpw}")
+    debugprint(f"Decoded confirm: {cnfmpw}")
     
     res = False
     if password != cnfmpw:
@@ -136,7 +125,7 @@ def att_login(c: socket.socket) -> bool:
     c.send(client_send_msg)
     if usr_len < 0:
         msg = "Username is too long"
-        print(msg)
+        debugprint(msg)
         c.send(msg.encode('ascii'))
         return False
     usr_utf8 = c.recv(usr_len)
@@ -158,7 +147,7 @@ def att_login(c: socket.socket) -> bool:
     c.send(client_send_msg)
     if pw_len < 0:
         msg = "Password incorrect"
-        print(msg)
+        debugprint(msg)
         c.send(msg.encode('ascii'))
         return False;
     pw_utf8 = c.recv(pw_len)
@@ -188,7 +177,7 @@ def attempt_deliver_messages(target: str):
         return False
     # Assumes target is online, so has a corersponding socket
     c = account_store.sock[target] # c: socket.socket
-    print(f"Sending to {c}")
+    debugprint(f"Sending to {c}")
     unsent, idx = message_handler.fetch_messages(target)
     if len(unsent) == 0:
         return False #sending nothing
@@ -217,7 +206,7 @@ def pack_send_info(msg: str):
            msg.encode('ascii')
 
 def user_send_msg(c: socket.socket, sender: str) -> bool:
-    print("Start receive message")
+    debugprint("Start receive message")
     usr_len_bytes = c.recv(1024)
     usr_len = -1
     client_send_msg = CLIENT_MESSAGE_APPROVED
@@ -261,8 +250,8 @@ def user_send_msg(c: socket.socket, sender: str) -> bool:
         complete_msg.append(msg_utf8)
         c.send(CLIENT_MESSAGE_APPROVED)
     message_handler.push_new_message(recipient, sender, complete_msg)
-    print(f"Have {message_handler.message_count} messages")
-    print(message_handler.message_store)
+    debugprint(f"Have {message_handler.message_count} messages")
+    debugprint(message_handler.message_store)
     attempt_deliver_messages(recipient)
     
 
@@ -294,25 +283,25 @@ def att_delete_account(c: socket.socket, username: str) -> bool:
 def list_all_users(c: socket.socket): # done
     sz = c.recv(1, socket.MSG_PEEK)
     if not sz:
-        print("No data received -- list all users")
+        debugprint("No data received -- list all users")
         return
     sz = int.from_bytes(sz, byteorder="little")
-    print("Recv size {sz}")
+    debugprint("Recv size {sz}")
     regexstr = c.recv(1+sz).decode('utf-8')[1:]
-    print("Compiling: ", regexstr)
+    debugprint("Compiling: ", regexstr)
     try:
         if (regexstr == ""): raise re.error("empty str go default")
-        print(fr"{regexstr}")
+        debugprint(fr"{regexstr}")
         r = re.compile(regexstr)
     except re.error:
-        print("here")
         r = re.compile(r'.');
-    print(r.__repr__())
-    print(r.search("test"))
+    debugprint(r.__repr__())
+    debugprint(r.search("test"))
     
-    print(list(r.search(x) for x in account_store.account_list.keys()))
+    debugprint(list(r.search(x) for x in account_store.account_list.keys()))
     lst = list(filter(lambda x: not (r.search(x) is None), account_store.account_list.keys()))
-    print(f"List: {lst}")
+    debugprint(f"List: {lst}")
+    lst.sort()
     num_users = len(lst)
     num_users_bytes = num_users.to_bytes(CLIENT_ACCOUNT_LIST_NBYTES, byteorder='little')
     c.send(CLIENT_RETRIEVE_ACCOUNT_LIST + num_users_bytes)
@@ -337,8 +326,8 @@ def handle_user(c, addr): # thread for user
             break
         if mode.decode('ascii') == "1":
             create_user(c)
-            print("All users:")
-            print(account_store.account_list)
+            debugprint("All users:")
+            debugprint(account_store.account_list)
         elif mode.decode('ascii') == "2":
             logged_in, cur_user = att_login(c)
         else: # option 3. Exit
@@ -365,8 +354,8 @@ def handle_user(c, addr): # thread for user
                     c.send(CLIENT_LOGGING_OUT)
                     logged_in = False
                     cur_user = None
-                print("All users:")
-                print(account_store.account_list)
+                debugprint("All users:")
+                debugprint(account_store.account_list)
             elif mode == "3":
                 list_all_users(c)
             else: # mode == "4"
@@ -385,11 +374,11 @@ def Main():
 
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.bind((HOST, PORT))
-    print("socket binded to port", PORT)
+    debugprint("socket binded to port", PORT)
  
     # put the socket into listening mode
     s.listen(5)
-    print("socket is listening")
+    debugprint("socket is listening")
  
     # a forever loop until client wants to exit
     try:

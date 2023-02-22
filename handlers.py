@@ -96,13 +96,11 @@ class MessageHandler:
     def __init__(self, store = {}):
         self.message_store = store # username: [message, message, ...]
         self.message_count = 0
-        self.last_message = {usr: -1 for usr in store}
         self.last_idx = {usr: -1 for usr in store}
 
     def init_user(self, username):
         if not (username in self.message_store):
             self.message_store[username] = []
-            self.last_message[username] = -1
             self.last_idx[username] = -1
             return True
         return False
