@@ -11,9 +11,10 @@ message UserList {
     string partialusername = 1;
 }
 
-message Text {
-    string receiverusername = 1;
-    string message = 2;
+message Message {
+    string senderusername = 1;
+    string receiverusername = 2;
+    string message = 3;
 }
 
 message requestReply {
@@ -27,8 +28,10 @@ service ChatRoom {
     rpc Logout (User) returns (requestReply);
     rpc DeleteUser (User) returns (requestReply);
     rpc ListUsers (UserList) returns (requestReply);
-    rpc SendText (Text) returns (requestReply);
-
+    
+    rpc SendMessage (Message) returns (requestReply);
+    rpc IncomingStream(User) returns (stream Message);
+    rpc DeliverMessage(Message) returns (requestReply);
 }
 
 // python3 -m grpc_tools.protoc -I../grpc-chatroom --python_out=. --pyi_out=. --grpc_python_out=. ../grpc-chatroom/chatroom.proto

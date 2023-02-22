@@ -39,9 +39,19 @@ class ChatRoomStub(object):
                 request_serializer=chatroom__pb2.UserList.SerializeToString,
                 response_deserializer=chatroom__pb2.requestReply.FromString,
                 )
-        self.SendText = channel.unary_unary(
-                '/chatroom.ChatRoom/SendText',
-                request_serializer=chatroom__pb2.Text.SerializeToString,
+        self.SendMessage = channel.unary_unary(
+                '/chatroom.ChatRoom/SendMessage',
+                request_serializer=chatroom__pb2.Message.SerializeToString,
+                response_deserializer=chatroom__pb2.requestReply.FromString,
+                )
+        self.IncomingStream = channel.unary_stream(
+                '/chatroom.ChatRoom/IncomingStream',
+                request_serializer=chatroom__pb2.User.SerializeToString,
+                response_deserializer=chatroom__pb2.Message.FromString,
+                )
+        self.DeliverMessage = channel.unary_unary(
+                '/chatroom.ChatRoom/DeliverMessage',
+                request_serializer=chatroom__pb2.Message.SerializeToString,
                 response_deserializer=chatroom__pb2.requestReply.FromString,
                 )
 
@@ -79,7 +89,19 @@ class ChatRoomServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def SendText(self, request, context):
+    def SendMessage(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def IncomingStream(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def DeliverMessage(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -113,9 +135,19 @@ def add_ChatRoomServicer_to_server(servicer, server):
                     request_deserializer=chatroom__pb2.UserList.FromString,
                     response_serializer=chatroom__pb2.requestReply.SerializeToString,
             ),
-            'SendText': grpc.unary_unary_rpc_method_handler(
-                    servicer.SendText,
-                    request_deserializer=chatroom__pb2.Text.FromString,
+            'SendMessage': grpc.unary_unary_rpc_method_handler(
+                    servicer.SendMessage,
+                    request_deserializer=chatroom__pb2.Message.FromString,
+                    response_serializer=chatroom__pb2.requestReply.SerializeToString,
+            ),
+            'IncomingStream': grpc.unary_stream_rpc_method_handler(
+                    servicer.IncomingStream,
+                    request_deserializer=chatroom__pb2.User.FromString,
+                    response_serializer=chatroom__pb2.Message.SerializeToString,
+            ),
+            'DeliverMessage': grpc.unary_unary_rpc_method_handler(
+                    servicer.DeliverMessage,
+                    request_deserializer=chatroom__pb2.Message.FromString,
                     response_serializer=chatroom__pb2.requestReply.SerializeToString,
             ),
     }
@@ -214,7 +246,7 @@ class ChatRoom(object):
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
     @staticmethod
-    def SendText(request,
+    def SendMessage(request,
             target,
             options=(),
             channel_credentials=None,
@@ -224,8 +256,42 @@ class ChatRoom(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/chatroom.ChatRoom/SendText',
-            chatroom__pb2.Text.SerializeToString,
+        return grpc.experimental.unary_unary(request, target, '/chatroom.ChatRoom/SendMessage',
+            chatroom__pb2.Message.SerializeToString,
+            chatroom__pb2.requestReply.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def IncomingStream(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_stream(request, target, '/chatroom.ChatRoom/IncomingStream',
+            chatroom__pb2.User.SerializeToString,
+            chatroom__pb2.Message.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def DeliverMessage(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/chatroom.ChatRoom/DeliverMessage',
+            chatroom__pb2.Message.SerializeToString,
             chatroom__pb2.requestReply.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

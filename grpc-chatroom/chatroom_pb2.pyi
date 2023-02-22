@@ -4,13 +4,15 @@ from typing import ClassVar as _ClassVar, Optional as _Optional
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
-class Text(_message.Message):
-    __slots__ = ["message", "receiverusername"]
+class Message(_message.Message):
+    __slots__ = ["message", "receiverusername", "senderusername"]
     MESSAGE_FIELD_NUMBER: _ClassVar[int]
     RECEIVERUSERNAME_FIELD_NUMBER: _ClassVar[int]
+    SENDERUSERNAME_FIELD_NUMBER: _ClassVar[int]
     message: str
     receiverusername: str
-    def __init__(self, receiverusername: _Optional[str] = ..., message: _Optional[str] = ...) -> None: ...
+    senderusername: str
+    def __init__(self, senderusername: _Optional[str] = ..., receiverusername: _Optional[str] = ..., message: _Optional[str] = ...) -> None: ...
 
 class User(_message.Message):
     __slots__ = ["password", "username"]

@@ -113,31 +113,58 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
         """
         Sends a message to the given user.
         """
-        username = request.username
-        message = request.message
-        if username not in self.user_passwords:
+        senderusername = request.senderusername
+        receiverusername = request.receiverusername
+        message = senderusername + " says: " + request.message # embed sender username in message
+        if receiverusername not in self.user_passwords:
             return chatroom_pb2.requestReply(status=0, message="Username does not exist")
-        self.lock.acquire()
-        self.messages[username].append(message)
-        self.lock.release()
-        return chatroom_pb2.requestReply(status=1, message="Message sent successfully")
-
-    def ReceiveMessage(self, request, context):
-        """
-        Receives a message from the given user.
-        """
-        username = request.username
-        if username not in self.user_passwords:
-            return chatroom_pb2.requestReply(status=0, message="Username does not exist")
-        while True:
+        # if user is offline, queue message
+        if not self.user_is_online[receiverusername]:
             self.lock.acquire()
-            if len(self.messages[username]) > 0:
+            self.messages[receiverusername].append(message)
+            self.lock.release()    
+            return chatroom_pb2.requestReply(status=1, message="User is offline, message queued")
+        # if user is online, send message
+        else:
+            self.lock.acquire()
+            self.messages[receiverusername].append(message)
+            self.lock.release()
+            return chatroom_pb2.requestReply(status=1, message="User is online, message sent")
+
+    def IncomingStream(self, request, context):
+        """
+        Sends a response-stream of incoming messages to the given user.
+        Each client opens this and waits for server to send them messages. 
+        """
+        logging.info("IncomingStream called for user %s", request.username)
+
+        username = request.username
+
+        # if user is online, send messages
+        while self.user_is_online[username]:
+            while len(self.messages[username]) > 0: # if pending messages
                 message = self.messages[username].pop(0)
-                self.lock.release()
+                print("Sending message to user %s: \"%s\"" % (username, message))
                 yield chatroom_pb2.requestReply(status=1, message=message)
-            else:
-                self.lock.release()
-                time.sleep(0.1)
+            time.sleep(1)
+
+
+    # def DeliverMessage(self, request, context):
+    #     """
+    #     Delivers a message to the given user.
+    #     """
+    #     username = request.username
+    #     if username not in self.user_passwords:
+    #         return chatroom_pb2.requestReply(status=0, message="Username does not exist")
+    #     # if user is offline, queue message
+    #     if not self.user_is_online[username]:
+    #         return chatroom_pb2.requestReply(status=0, message="User is offline")
+    #     # if user is online, send message
+    #     else:
+    #         self.lock.acquire()
+    #         message = self.messages[username].pop(0)
+    #         self.lock.release()
+    #         return chatroom_pb2.requestReply(status=1, message=message)
     
     
 def serve():
