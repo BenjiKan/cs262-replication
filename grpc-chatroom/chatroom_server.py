@@ -9,9 +9,6 @@ import time
 import threading
 import re
 
-# import constants
-# from ..constants import *
-
 class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
     user_passwords = {} # list of users in {username: password} form
     messages = {} # list of pending messages in {username: [messages]} form
@@ -24,11 +21,8 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
         """
         username = request.username
         password = request.password
-        # cnfm_pw = request.cnfm_pw
         if username in self.user_passwords:
             return chatroom_pb2.requestReply(status=0, message="Username already exists")
-        # if password != cnfm_pw:
-        #     return chatroom_pb2.CreateUserResponse(status=0, message="Passwords do not match")
         
         # if no problems, make account
         self.lock.acquire()
@@ -120,16 +114,16 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
             return chatroom_pb2.requestReply(status=0, message="Username does not exist")
         # if user is offline, queue message
         if not self.user_is_online[receiverusername]:
-            #self.lock.acquire()
+            self.lock.acquire()
             self.messages[receiverusername].append(message)
-            #self.lock.release()    
-            return chatroom_pb2.requestReply(status=1, message="User is offline, message queued")
+            self.lock.release()    
+            return chatroom_pb2.requestReply(status=1, message="User %s is offline, message queued" % (receiverusername))
         # if user is online, send message
         else:
-            #self.lock.acquire()
+            self.lock.acquire()
             self.messages[receiverusername].append(message)
-            #self.lock.release()
-            return chatroom_pb2.requestReply(status=1, message="User is online, message sent")
+            self.lock.release()
+            return chatroom_pb2.requestReply(status=1, message="User %s is online, message sent" % (receiverusername))
 
     def IncomingStream(self, request, context):
         """
@@ -144,7 +138,7 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
         while self.user_is_online[username]:
             while len(self.messages[username]) > 0: # if pending messages
                 message = self.messages[username].pop(0)
-                print("Sending message to user %s: \"%s\"" % (username, message))
+                print("Sending/queuing message to user %s: \"%s\"" % (username, message))
                 yield chatroom_pb2.Message(senderusername="", receiverusername=username, message=message)
             time.sleep(1)
 

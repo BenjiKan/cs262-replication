@@ -10,16 +10,10 @@ import time
 from inputimeout import inputimeout
 import sys
 
-# import constants
-# from constants import *
-
-
 
 def CreateUser(stub):
     username = input("Enter a username: ")
     password = input("Enter a password: ")
-    # cnfm_pw = input("Confirm password: ")
-    # response = stub.CreateUser(chatroom_pb2.User(username=username, password=password, cnfm_pw=cnfm_pw))
     response = stub.CreateUser(chatroom_pb2.User(username=username, password=password))
 
     print(response.message)
@@ -110,7 +104,7 @@ def run():
                 print("\nYou are logged in as " + logged_in)
             # request = input("Enter a command: ")
             try:
-                request = inputimeout(prompt="Enter a command: ", timeout=30)
+                request = inputimeout(prompt="Enter a command: ", timeout=30) # automatic logout after 30 seconds
             except Exception:
                 if logged_in!=None:
                     print("Timed out, logging out...")
