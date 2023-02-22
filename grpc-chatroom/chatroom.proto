@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package chatroom;
+
+message User {
+    string username = 1;
+    string password = 2;
+}
+
+message UserList {
+    string partialusername = 1;
+}
+
+message Text {
+    string receiverusername = 1;
+    string message = 2;
+}
+
+message requestReply {
+    bool status = 1;
+    string message = 2;
+}
+
+service ChatRoom {
+    rpc CreateUser (User) returns (requestReply);
+    rpc Login (User) returns (requestReply);
+    rpc DeleteUser (User) returns (requestReply);
+    rpc ListUsers (UserList) returns (requestReply);
+    rpc SendText (Text) returns (requestReply);
+
+}
+
+// python3 -m grpc_tools.protoc -I../grpc-chatroom --python_out=. --pyi_out=. --grpc_python_out=. ../grpc-chatroom/chatroom.proto
