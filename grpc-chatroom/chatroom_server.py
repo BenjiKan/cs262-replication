@@ -34,6 +34,7 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
         self.lock.acquire()
         self.user_passwords[username] = password
         self.messages[username] = []
+        self.user_is_online[username] = False
         print(self.user_passwords.keys())
         self.lock.release()
         return chatroom_pb2.requestReply(status=1, message="User created successfully")
@@ -76,7 +77,7 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
         Lists all users.
         """
         if request.partialusername == "":
-            print("All users")
+            print("Returning all users...")
             return chatroom_pb2.requestReply(status=1, message=" ".join(self.user_passwords.keys()))
         else:
             partial = re.compile(request.partialusername)
@@ -90,7 +91,6 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
             else:
                 return chatroom_pb2.requestReply(status=1, message=" ".join(matching_users))
         
-    ## TODO
     def DeleteUser(self, request, context):
         """
         Deletes the user with the given username.
@@ -98,11 +98,16 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
         username = request.username
         if username not in self.user_passwords:
             return chatroom_pb2.requestReply(status=0, message="Username does not exist")
-        self.lock.acquire()
-        del self.user_passwords[username]
-        del self.messages[username]
-        self.lock.release()
-        return chatroom_pb2.requestReply(status=1, message="User deleted successfully")
+        elif not self.user_is_online[username]:
+            return chatroom_pb2.requestReply(status=0, message="User is already offline")
+        else:
+            self.lock.acquire()
+            del self.user_passwords[username]
+            del self.messages[username]
+            del self.user_is_online[username]
+            print(self.user_passwords.keys())
+            self.lock.release()
+            return chatroom_pb2.requestReply(status=1, message="User deleted successfully")
 
     def SendMessage(self, request, context):
         """

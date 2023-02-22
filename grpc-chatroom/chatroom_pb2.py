@@ -13,7 +13,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0e\x63hatroom.proto\x12\x08\x63hatroom\"*\n\x04User\x12\x10\n\x08username\x18\x01 \x01(\t\x12\x10\n\x08password\x18\x02 \x01(\t\"#\n\x08UserList\x12\x17\n\x0fpartialusername\x18\x01 \x01(\t\"1\n\x04Text\x12\x18\n\x10receiverusername\x18\x01 \x01(\t\x12\x0f\n\x07message\x18\x02 \x01(\t\"/\n\x0crequestReply\x12\x0e\n\x06status\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t2\x94\x02\n\x08\x43hatRoom\x12\x34\n\nCreateUser\x12\x0e.chatroom.User\x1a\x16.chatroom.requestReply\x12/\n\x05Login\x12\x0e.chatroom.User\x1a\x16.chatroom.requestReply\x12\x34\n\nDeleteUser\x12\x0e.chatroom.User\x1a\x16.chatroom.requestReply\x12\x37\n\tListUsers\x12\x12.chatroom.UserList\x1a\x16.chatroom.requestReply\x12\x32\n\x08SendText\x12\x0e.chatroom.Text\x1a\x16.chatroom.requestReplyb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0e\x63hatroom.proto\x12\x08\x63hatroom\"*\n\x04User\x12\x10\n\x08username\x18\x01 \x01(\t\x12\x10\n\x08password\x18\x02 \x01(\t\"#\n\x08UserList\x12\x17\n\x0fpartialusername\x18\x01 \x01(\t\"1\n\x04Text\x12\x18\n\x10receiverusername\x18\x01 \x01(\t\x12\x0f\n\x07message\x18\x02 \x01(\t\"/\n\x0crequestReply\x12\x0e\n\x06status\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t2\xc6\x02\n\x08\x43hatRoom\x12\x34\n\nCreateUser\x12\x0e.chatroom.User\x1a\x16.chatroom.requestReply\x12/\n\x05Login\x12\x0e.chatroom.User\x1a\x16.chatroom.requestReply\x12\x30\n\x06Logout\x12\x0e.chatroom.User\x1a\x16.chatroom.requestReply\x12\x34\n\nDeleteUser\x12\x0e.chatroom.User\x1a\x16.chatroom.requestReply\x12\x37\n\tListUsers\x12\x12.chatroom.UserList\x1a\x16.chatroom.requestReply\x12\x32\n\x08SendText\x12\x0e.chatroom.Text\x1a\x16.chatroom.requestReplyb\x06proto3')
 
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, globals())
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'chatroom_pb2', globals())
@@ -29,5 +29,5 @@ if _descriptor._USE_C_DESCRIPTORS == False:
   _REQUESTREPLY._serialized_start=160
   _REQUESTREPLY._serialized_end=207
   _CHATROOM._serialized_start=210
-  _CHATROOM._serialized_end=486
+  _CHATROOM._serialized_end=536
 # @@protoc_insertion_point(module_scope)

@@ -24,6 +24,11 @@ class ChatRoomStub(object):
                 request_serializer=chatroom__pb2.User.SerializeToString,
                 response_deserializer=chatroom__pb2.requestReply.FromString,
                 )
+        self.Logout = channel.unary_unary(
+                '/chatroom.ChatRoom/Logout',
+                request_serializer=chatroom__pb2.User.SerializeToString,
+                response_deserializer=chatroom__pb2.requestReply.FromString,
+                )
         self.DeleteUser = channel.unary_unary(
                 '/chatroom.ChatRoom/DeleteUser',
                 request_serializer=chatroom__pb2.User.SerializeToString,
@@ -51,6 +56,12 @@ class ChatRoomServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def Login(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def Logout(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -84,6 +95,11 @@ def add_ChatRoomServicer_to_server(servicer, server):
             ),
             'Login': grpc.unary_unary_rpc_method_handler(
                     servicer.Login,
+                    request_deserializer=chatroom__pb2.User.FromString,
+                    response_serializer=chatroom__pb2.requestReply.SerializeToString,
+            ),
+            'Logout': grpc.unary_unary_rpc_method_handler(
+                    servicer.Logout,
                     request_deserializer=chatroom__pb2.User.FromString,
                     response_serializer=chatroom__pb2.requestReply.SerializeToString,
             ),
@@ -141,6 +157,23 @@ class ChatRoom(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/chatroom.ChatRoom/Login',
+            chatroom__pb2.User.SerializeToString,
+            chatroom__pb2.requestReply.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def Logout(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/chatroom.ChatRoom/Logout',
             chatroom__pb2.User.SerializeToString,
             chatroom__pb2.requestReply.FromString,
             options, channel_credentials,
