@@ -117,7 +117,8 @@ def att_login(s: socket.socket) -> int:
 
 	# Check return status
 	res = s.recv(1).decode('ascii')
-	resmsg = s.recv(1024)
+	ln = int.from_bytes(s.recv(1), byteorder="little")
+	resmsg = s.recv(ln)
 	print(resmsg.decode('ascii'))
 	return int(res), username
 
@@ -132,32 +133,53 @@ def recv_handler_thread(s: socket.socket):
 	# Other parts can recv by using the queues
 	#print("Thread created")
 	while True:
-		cur = s.recv(1) # receive status byte
+		cur = s.recv(1, socket.MSG_PEEK) # receive status byte
 		if not cur:
 			continue
 		#print("RECEIVED A BYTE: ", cur)
-		if cur == CLIENT_LOGGING_OUT:
-			#print("CLOSING THREAD")
-			return
-		elif cur in [CLIENT_MESSAGE_APPROVED, CLIENT_MESSAGE_REJECTED,
-		             CLIENT_MESSAGE_SENDING_INFO, CLIENT_RETRIEVE_ACCOUNT_LIST,
-					 CLIENT_ACCOUNT_SENDING]:
-			client_q_lock.acquire()
-			if cur == CLIENT_MESSAGE_SENDING_INFO:
-				cur = s.recv(1024)
-			elif cur == CLIENT_RETRIEVE_ACCOUNT_LIST:
-				cur = s.recv(CLIENT_ACCOUNT_LIST_NBYTES)
-			elif cur == CLIENT_ACCOUNT_SENDING:
-				n_cur = s.recv(CLIENT_ACCOUNT_LIST_NBYTES)
-				cur = s.recv(int.from_bytes(n_cur, byteorder='little'))
-			client_interactions_q.append(cur)
-			client_q_lock.release()
-		elif cur in [SERVER_SENDING_MESSAGE]:
-			msg_q_lock.acquire()
-			msg_q.append(cur)
-			msg_q_lock.release()
+		if cur in [SERVER_SENDING_MESSAGE]:
+			print("Acquiring messages")
+			cur = s.recv(2, socket.MSG_PEEK)
+			print(cur, cur[1:])
+			ln = int.from_bytes(cur[1:], byteorder="little")
+			print(cur)
+			cur = s.recv(2 + ln)
+			sender = cur[2:].decode('utf-8')
+			cur = s.recv(2, socket.MSG_PEEK) # check for chunk size
+			ln = int.from_bytes(cur[1:], byteorder="little")
+			cur = s.recv(2 + ln)
+			numchunks = int.from_bytes(cur[2:], byteorder="little")
+			print(f"Message from {sender}:", end=" ")
+			for i in range(numchunks):
+				cur = s.recv(3)
+				ln = int.from_bytes(cur[1:3], byteorder='little')
+				msg = s.recv(ln).decode('utf-8')
+				print(msg, end="")
+			print()
+			# msg_q.append()
+			# msg_q_lock.acquire()
+			# msg_q.append(cur)
+			# msg_q_lock.release()
 		else:
-			print("Ill-formed response received from server")
+			cur = s.recv(1)
+			if cur == CLIENT_LOGGING_OUT:
+				return
+			elif cur in [CLIENT_MESSAGE_APPROVED, CLIENT_MESSAGE_REJECTED,
+						CLIENT_MESSAGE_SENDING_INFO, CLIENT_RETRIEVE_ACCOUNT_LIST,
+						CLIENT_ACCOUNT_SENDING]:
+				client_q_lock.acquire()
+				if cur == CLIENT_MESSAGE_SENDING_INFO:
+					ln = int.from_bytes(s.recv(1), byteorder="little")
+					cur = s.recv(ln)
+				elif cur == CLIENT_RETRIEVE_ACCOUNT_LIST:
+					cur = s.recv(CLIENT_ACCOUNT_LIST_NBYTES)
+				elif cur == CLIENT_ACCOUNT_SENDING:
+					n_cur = s.recv(CLIENT_ACCOUNT_LIST_NBYTES)
+					cur = s.recv(int.from_bytes(n_cur, byteorder='little'))
+				client_interactions_q.append(cur)
+				client_q_lock.release()
+			else:
+				print("Ill-formed response received from server")
 
 def client_get_response():
 	elt = None
@@ -243,7 +265,11 @@ def delete_account(s: socket.socket) -> bool:
 	print(retstr.decode('ascii'))
 	return ret == CLIENT_MESSAGE_APPROVED
 
-def print_all_users(s: socket.socket, username: str) -> bool: # done
+def print_select_users(s: socket.socket, username: str) -> bool: # done
+	rstr = input("Enter Python regex (if blank, will select all): ")
+	if (len(rstr) > 50): rstr = rstr[:50]
+	ln = len(rstr.encode("utf-8")).to_bytes(1, byteorder="little")
+	s.send(ln + rstr.encode("utf-8"))
 	n_users = client_get_response()
 	n_users = int.from_bytes(n_users, byteorder='little')
 	user_list = ["All registered users:"]
@@ -310,7 +336,7 @@ def Main():
 					logged_in = False
 			elif choice == '3': 
 				s.send(choice.encode('ascii'))
-				print_all_users(s, cur_user)
+				print_select_users(s, cur_user)
 			else: # choice == '4'
 				ans = input("Are you sure you want to logout? (enter 'y' to confirm) ")
 				if (ans != 'y'):

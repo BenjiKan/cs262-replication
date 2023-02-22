@@ -6,6 +6,7 @@ import sys
 import os
 # import mysql.connector
 import random
+import re
 
 from typing import Optional
  
@@ -16,7 +17,7 @@ import threading
 accountName_table={}
 accountBalance_table={}
 
-p_lock = threading.Lock()
+#p_lock = threading.Lock()
 
 # import constants
 from constants import *
@@ -175,10 +176,45 @@ def att_login(c: socket.socket) -> bool:
     else: #res == 3
         msg = "User does not exist."
     c.send(str(res).encode('ascii'))
+    c.send(len(msg.encode('ascii')).to_bytes(1,byteorder="little"))
     c.send(msg.encode('ascii'))
+    if (res == 0): # have to have this call after so that client can login first
+        attempt_deliver_messages(username)
     return (res == 0), username
 
-def attempt_deliver_messages(sender):pass
+def attempt_deliver_messages(target: str):
+    # return
+    if not account_store.is_online[target]:
+        return False
+    # Assumes target is online, so has a corersponding socket
+    c = account_store.sock[target] # c: socket.socket
+    print(f"Sending to {c}")
+    unsent, idx = message_handler.fetch_messages(target)
+    if len(unsent) == 0:
+        return False #sending nothing
+    for message in unsent:
+        bytestr = SERVER_SENDING_MESSAGE +\
+                  (len(message.sender.encode('utf-8'))).to_bytes(1, byteorder="little") +\
+                  message.sender.encode('utf-8')
+        c.send(bytestr) # send name of sender
+        bytestr = SERVER_SENDING_MESSAGE +\
+                  (len(message.content[0])).to_bytes(1, byteorder="little") +\
+                  message.content[0]
+        c.send(bytestr) # send number of chunks
+        for i in range(1, len(message.content)):
+            # some string that we send, enforced to be < 280 utf-8 (or <280 * 4)
+            string = message.content[i].encode('utf-8')
+            ln = len(string).to_bytes(2, byteorder='little')
+            bytestr = SERVER_SENDING_MESSAGE + ln + string
+            c.send(bytestr)
+    message_handler.last_idx[target] = idx
+    return True
+            
+        
+def pack_send_info(msg: str):
+    return CLIENT_MESSAGE_SENDING_INFO +\
+           len(msg.encode('ascii')).to_bytes(1, byteorder="little") +\
+           msg.encode('ascii')
 
 def user_send_msg(c: socket.socket, sender: str) -> bool:
     print("Start receive message")
@@ -194,17 +230,13 @@ def user_send_msg(c: socket.socket, sender: str) -> bool:
             usr_len = -1
     c.send(client_send_msg)
     if usr_len < 0: # Rejected case
-        c.send(CLIENT_MESSAGE_SENDING_INFO)
-        msg = "User not found"
-        c.send(msg.encode('ascii'))
+        c.send(pack_send_info("User not found"))
         return False
     usr_utf8 = c.recv(usr_len)
     recipient = usr_utf8.decode('utf-8')
     if not account_store.user_exists(recipient):
         c.send(CLIENT_MESSAGE_REJECTED)
-        c.send(CLIENT_MESSAGE_SENDING_INFO)
-        msg = "Recipient does not exist"
-        c.send(msg.encode('ascii'))
+        c.send(pack_send_info("Recipient does not exist"))
         return
     else:
         c.send(CLIENT_MESSAGE_APPROVED)
@@ -216,9 +248,7 @@ def user_send_msg(c: socket.socket, sender: str) -> bool:
         tmp = c.recv(1024)
         while tmp: tmp = c.recv(1024)
         c.send(CLIENT_MESSAGE_REJECTED)
-        c.send(CLIENT_MESSAGE_SENDING_INFO)
-        msg = "Message is too long to send"
-        c.send(msg.encode('ascii'))
+        c.send(pack_send_info("Message is too long to send"))
         return
     else:
         c.send(CLIENT_MESSAGE_APPROVED)
@@ -233,6 +263,7 @@ def user_send_msg(c: socket.socket, sender: str) -> bool:
     message_handler.push_new_message(recipient, sender, complete_msg)
     print(f"Have {message_handler.message_count} messages")
     print(message_handler.message_store)
+    attempt_deliver_messages(recipient)
     
 
 def att_delete_account(c: socket.socket, username: str) -> bool:
@@ -246,9 +277,7 @@ def att_delete_account(c: socket.socket, username: str) -> bool:
             usr_len = -1
     if usr_len < 0: # Rejected case
         c.send(CLIENT_MESSAGE_REJECTED)
-        c.send(CLIENT_MESSAGE_SENDING_INFO)
-        msg = "Confirmation failed - invalid input"
-        c.send(msg.encode('ascii'))
+        c.send(pack_send_info("Confirmation failed - invalid input"))
         return False
     # Passes initial check, get username
     c.send(CLIENT_MESSAGE_APPROVED)
@@ -256,28 +285,43 @@ def att_delete_account(c: socket.socket, username: str) -> bool:
     cmp_usr = usr_utf8.decode('utf-8')
     if cmp_usr != username or (not account_store.delete_account(username)):
         c.send(CLIENT_MESSAGE_REJECTED)
-        c.send(CLIENT_MESSAGE_SENDING_INFO)
-        msg = "Confirmation failed -- invalid username"
-        c.send(msg.encode('ascii'))
+        c.send(pack_send_info("Confirmation failed - invalid username"))
         return False
     c.send(CLIENT_MESSAGE_APPROVED)
-    c.send(CLIENT_MESSAGE_SENDING_INFO)
-    msg = "Confirmed -- user successfully deleted"
-    c.send(msg.encode('ascii'))
+    c.send(pack_send_info("Confirmed -- user successfully deleted"))
     return True
     
-def list_all_users(c: socket.socket):
-    num_users = len(account_store.account_list)
+def list_all_users(c: socket.socket): # done
+    sz = c.recv(1, socket.MSG_PEEK)
+    if not sz:
+        print("No data received -- list all users")
+        return
+    sz = int.from_bytes(sz, byteorder="little")
+    print("Recv size {sz}")
+    regexstr = c.recv(1+sz).decode('utf-8')[1:]
+    print("Compiling: ", regexstr)
+    try:
+        if (regexstr == ""): raise re.error("empty str go default")
+        print(fr"{regexstr}")
+        r = re.compile(regexstr)
+    except re.error:
+        print("here")
+        r = re.compile(r'.');
+    print(r.__repr__())
+    print(r.search("test"))
+    
+    print(list(r.search(x) for x in account_store.account_list.keys()))
+    lst = list(filter(lambda x: not (r.search(x) is None), account_store.account_list.keys()))
+    print(f"List: {lst}")
+    num_users = len(lst)
     num_users_bytes = num_users.to_bytes(CLIENT_ACCOUNT_LIST_NBYTES, byteorder='little')
-    c.send(CLIENT_RETRIEVE_ACCOUNT_LIST)
-    c.send(num_users_bytes)
-    for username in account_store.account_list:
-        c.send(CLIENT_ACCOUNT_SENDING)
+    c.send(CLIENT_RETRIEVE_ACCOUNT_LIST + num_users_bytes)
+    for username in lst:
         usr = username.encode('utf-8')
         usr_len = len(usr)
-        c.send(usr_len.to_bytes(CLIENT_ACCOUNT_LIST_NBYTES, byteorder='little'))
-        c.send(usr)
-    pass
+        c.send(CLIENT_ACCOUNT_SENDING + \
+               usr_len.to_bytes(CLIENT_ACCOUNT_LIST_NBYTES, byteorder='little') + \
+               usr)
 
 def handle_user(c, addr): # thread for user
     print(f"User connected at {addr}")

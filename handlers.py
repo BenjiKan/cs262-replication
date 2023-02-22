@@ -5,8 +5,12 @@ import os
 # import mysql.connector
 import random
 
-from typing import Optional
+from typing import Optional, List, Tuple
  
+# import thread module
+from _thread import *
+import threading
+
 # import constants from file
 from constants import *
 
@@ -78,24 +82,35 @@ class AccountHandler:
         del self.sock[username]
         return True
 
+p_lock = threading.Lock()
+
 class Message:
-    def __init__(self, sender, content, id, prv):
+    def __init__(self, sender: str, content: List[str], id, prv):
         self.sender = sender
         self.content = content
         self.id = id 
         self.prv = prv
 
+
 class MessageHandler:
     def __init__(self, store = {}):
         self.message_store = store # username: [message, message, ...]
         self.message_count = 0
+        self.last_message = {usr: -1 for usr in store}
+        self.last_idx = {usr: -1 for usr in store}
 
-    def _store_message(self, username, message: Message):
-        prv = -1;
+    def init_user(self, username):
         if not (username in self.message_store):
             self.message_store[username] = []
-        else:
+            self.last_message[username] = -1
+            self.last_idx[username] = -1
+            return True
+        return False
+    def _store_message(self, username, message: Message):
+        prv = -1;
+        if not self.init_user(username) and len(self.message_store[username]) > 0:
             prv = self.message_store[username][-1].id
+        message.prv = prv
         self.message_store[username].append(message)
         return True
 
@@ -110,9 +125,21 @@ class MessageHandler:
         del self.message_store[username]
         return True
 
-    def push_new_message(self, recipient, sender, body):
+    def push_new_message(self, recipient: str, sender: str, body: List[str]):
         p_lock.acquire()
         self._store_message(recipient,
                             Message(sender, body, self.message_count, -1))
         self.message_count += 1
         p_lock.release()
+
+    def fetch_messages(self, recipient: str) -> Tuple[List[Message], int]:
+        p_lock.acquire()
+        self.init_user(recipient)
+        cur_idx = self.last_idx[recipient]
+        n = len(self.message_store[recipient])
+        ret = []
+        while cur_idx + 1 < n:
+            cur_idx += 1
+            ret.append(self.message_store[recipient][cur_idx])
+        p_lock.release()
+        return ret, cur_idx

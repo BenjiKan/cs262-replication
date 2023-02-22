@@ -2,7 +2,7 @@
 HOST = "127.0.0.1"
 
 # Define the port on which you want to connect
-PORT = 9182 
+PORT = 9174 
 
 # Max message length in characters, as defined in class
 # Note that if we use utf-8, this results in a byte
