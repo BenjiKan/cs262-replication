@@ -20,10 +20,24 @@ def CreateUser(stub):
     print(response.message)
 
 def Login(stub):
+    if logged_in!=None:
+        print("You are already logged in as " + logged_in + ". Please log out first.")
+        return
     username = input("Enter a username: ")
     password = input("Enter a password: ")
     response = stub.Login(chatroom_pb2.User(username=username, password=password))
     print(response.message)
+    if response.status==1:
+        logged_in = username
+
+def Logout(stub):
+    if logged_in==None:
+        print("You are not logged in.")
+        return
+    response = stub.Logout(chatroom_pb2.User(username=logged_in))
+    print(response.message)
+    if response.status==1:
+        logged_in = None
 
 def ListUsers(stub):
     partial = input("Enter a partial username: ")
@@ -36,6 +50,7 @@ def ListUsers(stub):
 def run():
     with grpc.insecure_channel('localhost:50054') as channel:
         stub = chatroom_pb2_grpc.ChatRoomStub(channel)
+        logged_in = None
 
         while True:
             request = input("Enter a command: ")
@@ -47,6 +62,8 @@ def run():
                 CreateUser(stub)
             elif request == "login":
                 Login(stub)
+            elif request == "logout":
+                Logout(stub)
             elif request == "list":
                 ListUsers(stub)
             else:

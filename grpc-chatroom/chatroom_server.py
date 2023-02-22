@@ -13,8 +13,9 @@ import re
 # from ..constants import *
 
 class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
-    user_passwords = {} # username: password
-    messages = {} # username: [messages]
+    user_passwords = {} # list of users in {username: password} form
+    messages = {} # list of pending messages in {username: [messages]} form
+    user_is_online = {} # list of users with boolean flag for online status {username: True/False}
     lock = threading.Lock() # lock for messages
 
     def CreateUser(self, request, context):
@@ -45,9 +46,30 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
         password = request.password
         if username not in self.user_passwords:
             return chatroom_pb2.requestReply(status=0, message="Username does not exist")
-        if self.user_passwords[username] != password:
+        elif self.user_passwords[username] != password:
             return chatroom_pb2.requestReply(status=0, message="Incorrect password")
-        return chatroom_pb2.requestReply(status=1, message="Login successful")
+        elif self.user_is_online[username]:
+            return chatroom_pb2.requestReply(status=0, message="User is already online")
+        else:
+            self.lock.acquire()
+            self.user_is_online[username] = True
+            self.lock.release()
+            return chatroom_pb2.requestReply(status=1, message="Login successful")
+
+    def Logout(self, request, context):
+        """
+        Logs out the user with the given username.
+        """
+        username = request.username
+        if username not in self.user_passwords:
+            return chatroom_pb2.requestReply(status=0, message="Username does not exist")
+        elif not self.user_is_online[username]:
+            return chatroom_pb2.requestReply(status=0, message="User is already offline")
+        else:
+            self.lock.acquire()
+            self.user_is_online[username] = False
+            self.lock.release()
+            return chatroom_pb2.requestReply(status=1, message="Logout successful")
 
     def ListUsers(self, request, context):
         """

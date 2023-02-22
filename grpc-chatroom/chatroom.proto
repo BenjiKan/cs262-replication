@@ -24,6 +24,7 @@ message requestReply {
 service ChatRoom {
     rpc CreateUser (User) returns (requestReply);
     rpc Login (User) returns (requestReply);
+    rpc Logout (User) returns (requestReply);
     rpc DeleteUser (User) returns (requestReply);
     rpc ListUsers (UserList) returns (requestReply);
     rpc SendText (Text) returns (requestReply);
