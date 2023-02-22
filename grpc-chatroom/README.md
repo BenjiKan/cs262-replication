@@ -7,7 +7,7 @@ Make sure to install the `grpc` module, following instructions: https://grpc.io/
 ## Setup
 Enter the grpc directory.
 ```
-cd grpc
+cd grpc-chatroom
 ```
 
 Start the server by running
@@ -79,3 +79,12 @@ Deleting a user requires one to be logged in; this prevents the case that undeli
 One can list all users without even being logged in (this is one of the few functions that can be called without a login), as this allows for one who has forgotten their username to figure it out without authentication, and to see who else might be using the chat service. We have an automatic partial match for username, so as long as some username begins with the partial string entered. If no string is entered, all accounts will be returned.
 
 One can send messages to any other existing user, but not oneself—we did not believe that functionality would be useful. To deliver a message, it is passed into a queue on the server side, from which each client listens for messages corresponding to their username. Delivery of the message includes a text prefix that indicates the sending user.
+
+# Comparisons
+Compared to the wire protocol implementation, the gRPC implementation is much simpler and easier to read, since the gRPC module takes care of the details of connection. Indeed, the chatroom.proto file provides a succinct overview of different methods and their relationships, which are implemented in slightly more detail in chatroom_server.py and chatroom_client.py. 
+
+Usage is also easier, as we use single-word commands with follow-up prompts for parameters.
+
+The performance of the gRPC and wire protocol are similar, although the UI of the wire protocol is more detailed and that implementation has additional features. We hoped the gRPC version would be a "lite" version of the service, with implementation as lightweight as possible within reason to offset the additional weight of the communication and protocol buffers. 
+
+The protocol buffers in the wire protocol are much smaller and simpler as well, as each buffer contains just the necessary arguments with minimal metadata overhead. On the other hand, arguments are simpler but protocol buffers for the gRPC implementation are larger, as the gRPC module takes care of all the low-level metadata issues.
