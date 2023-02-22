@@ -120,15 +120,15 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
             return chatroom_pb2.requestReply(status=0, message="Username does not exist")
         # if user is offline, queue message
         if not self.user_is_online[receiverusername]:
-            self.lock.acquire()
+            #self.lock.acquire()
             self.messages[receiverusername].append(message)
-            self.lock.release()    
+            #self.lock.release()    
             return chatroom_pb2.requestReply(status=1, message="User is offline, message queued")
         # if user is online, send message
         else:
-            self.lock.acquire()
+            #self.lock.acquire()
             self.messages[receiverusername].append(message)
-            self.lock.release()
+            #self.lock.release()
             return chatroom_pb2.requestReply(status=1, message="User is online, message sent")
 
     def IncomingStream(self, request, context):
@@ -145,7 +145,7 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
             while len(self.messages[username]) > 0: # if pending messages
                 message = self.messages[username].pop(0)
                 print("Sending message to user %s: \"%s\"" % (username, message))
-                yield chatroom_pb2.requestReply(status=1, message=message)
+                yield chatroom_pb2.Message(senderusername="", receiverusername=username, message=message)
             time.sleep(1)
 
 

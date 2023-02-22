@@ -93,8 +93,9 @@ def CheckMessages(stub, status, listening):
     if status==None:
         print("You are not logged in.")
         return status
-    for message in listening: #stub.CheckMessages(chatroom_pb2.User(username=status)):
-        print(message.message)
+    for message in listening: 
+        print("\n"+message.message)
+
 
     
 def run():
@@ -109,10 +110,11 @@ def run():
                 print("\nYou are logged in as " + logged_in)
             # request = input("Enter a command: ")
             try:
-                request = inputimeout(prompt="Enter a command: ", timeout=10)
+                request = inputimeout(prompt="Enter a command: ", timeout=30)
             except Exception:
-                print("Timed out, checking for messages...")
-                CheckMessages(stub, status=logged_in, listening=stub.IncomingStream(chatroom_pb2.User(username=logged_in)))
+                if logged_in!=None:
+                    print("Timed out, logging out...")
+                    logged_in = Logout(stub, status=logged_in)
                 continue
 
 
