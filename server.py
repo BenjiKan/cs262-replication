@@ -33,6 +33,7 @@ debugprint = lambda *args: None
 account_store = AccountHandler()
 
 message_handler = MessageHandler()
+mh_lock = threading.Lock()
 
 ##### Helper Functions
 
@@ -41,6 +42,15 @@ def create_user(c: socket.socket) -> bool:
     """
     Creates a new user with the given username and password.
     """
+    # For each of {username, password, confirmation}, we do the following:
+    # we first receive the length of the string input in bytes, confirm that it
+    # is valid (i.e. not too long/short of a string), then accept exactly that
+    # many bytes for the required data. At each step of communication we use
+    # confirmation bytes to inform the client on whether transmission has
+    # succeeded/been rejected. When a string input is rejected, the server
+    # additionally sends a message.
+    
+    # User -- we use utf-8 for usernames. This allows non-latin characters.
     usr_len_bytes = c.recv(1024)
     usr_len = -1
     client_send_msg = CLIENT_MESSAGE_APPROVED
@@ -61,6 +71,7 @@ def create_user(c: socket.socket) -> bool:
     username = usr_utf8.decode('utf-8')
     c.send(CLIENT_MESSAGE_APPROVED) # send username received
 
+    # Password
     pw_len_bytes = c.recv(1024)
     pw_len = -1
     client_send_msg = CLIENT_MESSAGE_APPROVED
@@ -81,6 +92,7 @@ def create_user(c: socket.socket) -> bool:
     password = pw_utf8.decode('utf-8')
     c.send(CLIENT_MESSAGE_APPROVED) # send pw received
 
+    # Confirmation password
     cnfm_pw_len_bytes = c.recv(1024)
     cnfm_pw_len = -1
     client_send_msg = CLIENT_MESSAGE_APPROVED
@@ -105,19 +117,24 @@ def create_user(c: socket.socket) -> bool:
     if password != cnfmpw:
         msg = "Passwords do not match"
     else:
+        # Attempt to create an account in our account handler object (see handlers.py)
+        # Returns a boolean on whether an account is successfully created
         res = account_store._create_account(username, password)
         if res:
             msg = "User successfully created"
         else:
             msg = "User already exists"
+    # Final send to client
     c.send(CLIENT_MESSAGE_APPROVED if res else CLIENT_MESSAGE_REJECTED)
     c.send(msg.encode("ascii"))
+    # Pass on to client handling thread
     return res
 
 def att_login(c: socket.socket) -> bool:
     """
     Attempts to log in with the given username and password.
     """
+    # See create_user internal comments for a refresher on this approach
     usr_len_bytes = c.recv(1024)
     usr_len = -1
     client_send_msg = CLIENT_MESSAGE_APPROVED
@@ -160,15 +177,16 @@ def att_login(c: socket.socket) -> bool:
     password = pw_utf8.decode('utf-8')
     c.send(CLIENT_MESSAGE_APPROVED) # send pw received
     
+    # Attempts to log in using our status handler. This returns an int opcode
     res = account_store.login(username, password)
-    if res == 0:
+    if res == 0:  # everything works
         msg = "Login successful."
         account_store.update_sock(username, c)
-    elif res == 1:
+    elif res == 1:  # incorrect password
         msg = "Incorrect password."
-    elif res == 2:
+    elif res == 2:  # user is currently online
         msg = "User is currently logged in on another client."
-    else: #res == 3
+    else: #res == 3  # user does not exist
         msg = "User does not exist."
     c.send(str(res).encode('ascii'))
     c.send(len(msg.encode('ascii')).to_bytes(1,byteorder="little"))
@@ -177,20 +195,33 @@ def att_login(c: socket.socket) -> bool:
         attempt_deliver_messages(username)
     return (res == 0), username
 
+# This is the one server side call we have -- it attempts to push pending
+# messages to a client
 def attempt_deliver_messages(target: str):
     """
-    Attempts to deliver messages to the given target.
+    Attempts to deliver messages to the given target. This requires them to
+    be online
+
+    Returns a boolean indicating whether pending messages have been sent to
+    the target. 
     """
-    # return
-    if not account_store.is_online[target]:
+    if not account_store.is_online[target]: # We need target to be online
         return False
-    # Assumes target is online, so has a corersponding socket
+    # Assumes target is online, so has a corresponding socket
     c = account_store.sock[target] # c: socket.socket
     debugprint(f"Sending to {c}")
+    # Fetch pending messages from message handler object
+    # unsent: list of messages.
+    # idx: last index that has been sent
+    # Each message is an array of the form [number of chunks (int),
+    # chunk 1, chunk 2, ...] where each smaller chunk is a string.
+    mh_lock.acquire()
     unsent, idx = message_handler.fetch_messages(target)
+    mh_lock.release()
     if len(unsent) == 0:
-        return False #sending nothing
+        return False # nothing to send
     for message in unsent:
+        # See comment below above pack_send_info for more info on this approach
         bytestr = SERVER_SENDING_MESSAGE +\
                   (len(message.sender.encode('utf-8'))).to_bytes(1, byteorder="little") +\
                   message.sender.encode('utf-8')
@@ -198,17 +229,29 @@ def attempt_deliver_messages(target: str):
         bytestr = SERVER_SENDING_MESSAGE +\
                   (len(message.content[0])).to_bytes(1, byteorder="little") +\
                   message.content[0]
-        c.send(bytestr) # send number of chunks
-        for i in range(1, len(message.content)):
+        c.send(bytestr) # send number of chunks.
+        # Technically len(message.content) - 1 will equal num_chunks, but we
+        # just have an explicit number for clarity
+        for i in range(1, len(message.content)): # index 1 is the first chunk
             # some string that we send, enforced to be < 280 utf-8 (or <280 * 4)
             string = message.content[i].encode('utf-8')
             ln = len(string).to_bytes(2, byteorder='little')
             bytestr = SERVER_SENDING_MESSAGE + ln + string
             c.send(bytestr)
+    # Update in message handler that we have sent pending messages up to `idx`
+    mh_lock.acquire()
     message_handler.last_idx[target] = idx
+    mh_lock.release()
     return True
             
         
+# Structure for sending a message from the server once we introduce the
+# listening thead is to concatenate all required information into one
+# .send() command. Although TCP guarantees relative order, it is hard to
+# ensure that if we do have different send calls for the same overall message,
+# when sending multiple messages none of the send calls for two separate
+# messages will intersect and casue problems. Thus we use this function to pack
+# all the required info into one byte-string.
 def pack_send_info(msg: str):
     """
     Packs the given message into a byte string to be sent to the client.
@@ -217,11 +260,14 @@ def pack_send_info(msg: str):
            len(msg.encode('ascii')).to_bytes(1, byteorder="little") +\
            msg.encode('ascii')
 
+# Client wants to send a message.
 def user_send_msg(c: socket.socket, sender: str) -> bool:
     """
     Attempts to send a message from the given sender to the given recipient.
     """
     debugprint("Start receive message")
+    # Same way we've always tried sending stuff. Essentially check the length of
+    # inputs before taking them in
     usr_len_bytes = c.recv(1024)
     usr_len = -1
     client_send_msg = CLIENT_MESSAGE_APPROVED
@@ -236,14 +282,16 @@ def user_send_msg(c: socket.socket, sender: str) -> bool:
     if usr_len < 0: # Rejected case
         c.send(pack_send_info("User not found"))
         return False
+    # At this point, we've confirmed the input is alright.
     usr_utf8 = c.recv(usr_len)
     recipient = usr_utf8.decode('utf-8')
-    if not account_store.user_exists(recipient):
+    if not account_store.user_exists(recipient): # check if user exists
         c.send(CLIENT_MESSAGE_REJECTED)
         c.send(pack_send_info("Recipient does not exist"))
         return
     else:
         c.send(CLIENT_MESSAGE_APPROVED)
+
     # Handling recipient done, now handle receive messages
     num_chunk_bytes = c.recv(1024)
     num_chunks = int.from_bytes(num_chunk_bytes, byteorder="little")
@@ -256,17 +304,23 @@ def user_send_msg(c: socket.socket, sender: str) -> bool:
         return
     else:
         c.send(CLIENT_MESSAGE_APPROVED)
+    
+    # We accept the number of chunks, then each chunk individually
     complete_msg = [num_chunk_bytes]
     for i in range(num_chunks):
+        # length then message as always
         msg_len_bytes = c.recv(1024)
         c.send(CLIENT_MESSAGE_APPROVED)
         msg_len = int.from_bytes(msg_len_bytes, byteorder="little")
         msg_utf8 = c.recv(msg_len).decode('utf-8')
         complete_msg.append(msg_utf8)
         c.send(CLIENT_MESSAGE_APPROVED)
+
+    mh_lock.acquire()
     message_handler.push_new_message(recipient, sender, complete_msg)
     debugprint(f"Have {message_handler.message_count} messages")
     debugprint(message_handler.message_store)
+    mh_lock.release()
     attempt_deliver_messages(recipient)
     
 
@@ -274,6 +328,7 @@ def att_delete_account(c: socket.socket, username: str) -> bool:
     """
     Attempts to delete the given account.
     """
+    # as always, get length, confirm, then get string
     usr_len_bytes = c.recv(1024)
     usr_len = -1
     if not usr_len_bytes:
@@ -290,6 +345,8 @@ def att_delete_account(c: socket.socket, username: str) -> bool:
     c.send(CLIENT_MESSAGE_APPROVED)
     usr_utf8 = c.recv(usr_len)
     cmp_usr = usr_utf8.decode('utf-8')
+    # checks whether the username exists, or if deletion failed (via a call
+    # to the account handler). 
     if cmp_usr != username or (not account_store.delete_account(username)):
         c.send(CLIENT_MESSAGE_REJECTED)
         c.send(pack_send_info("Confirmation failed - invalid username"))
@@ -302,6 +359,7 @@ def list_all_users(c: socket.socket):
     """
     Lists all users in the server.
     """
+    # Server receives concatenation of size and regex string
     sz = c.recv(1, socket.MSG_PEEK)
     if not sz:
         debugprint("No data received -- list all users")
@@ -310,19 +368,23 @@ def list_all_users(c: socket.socket):
     debugprint("Recv size {sz}")
     regexstr = c.recv(1+sz).decode('utf-8')[1:]
     debugprint("Compiling: ", regexstr)
+    # We use the python regex library (see import re above) to parse this and
+    # match with list of users.
     try:
         if (regexstr == ""): raise re.error("empty str go default")
         debugprint(fr"{regexstr}")
         r = re.compile(regexstr)
     except re.error:
         r = re.compile(r'.');
+    # Debug prints to ensure that the regex works.
     debugprint(r.__repr__())
     debugprint(r.search("test"))
     
     debugprint(list(r.search(x) for x in account_store.account_list.keys()))
+    # If match, r.search returns an object. Thus we can just filter out the None's
     lst = list(filter(lambda x: not (r.search(x) is None), account_store.account_list.keys()))
     debugprint(f"List: {lst}")
-    lst.sort()
+    lst.sort() # aesthetics
     num_users = len(lst)
     num_users_bytes = num_users.to_bytes(CLIENT_ACCOUNT_LIST_NBYTES, byteorder='little')
     c.send(CLIENT_RETRIEVE_ACCOUNT_LIST + num_users_bytes)
@@ -343,6 +405,7 @@ def handle_user(c, addr): # thread for user
     c.send("Connected".encode("ascii"))
     logged_in = False
     cur_user = None
+    # General loop to match with client REPL
     while not logged_in: # pre-login
         mode = c.recv(1)
         if not mode:
@@ -403,7 +466,8 @@ def Main():
     debugprint("socket binded to port", PORT)
  
     # put the socket into listening mode
-    s.listen(5)
+    s.listen(262) # just so that we don't have too full of a server
+    #               (unless of course we scale to become the size of whatsapp)
     debugprint("socket is listening")
  
     # a forever loop until client wants to exit
@@ -417,6 +481,7 @@ def Main():
             # Start a new thread and return its identifier
             start_new_thread(handle_user, (c,addr))
     except KeyboardInterrupt:
+        # Allows the server to be interrupted by triggering Ctrl-C
         s.close()
         return
     except Exception as e:
