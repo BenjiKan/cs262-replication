@@ -8,6 +8,7 @@ import os
 import random
 import re
 
+from typing import Optional
  
 # import thread module
 from _thread import *
@@ -39,13 +40,13 @@ message_handler = MessageHandler()
 def create_user(c: socket.socket) -> bool:
     usr_len_bytes = c.recv(1024)
     usr_len = -1
-    client_send_msg = b'1'
+    client_send_msg = CLIENT_MESSAGE_APPROVED
     if len(usr_len_bytes) > 1: # username is definitely too long, > 256
-        client_send_msg = b'0'
+        client_send_msg = CLIENT_MESSAGE_REJECTED
     else:
         usr_len = int.from_bytes(usr_len_bytes, byteorder='little')
         if usr_len > 50:
-            client_send_msg = b'0'
+            client_send_msg = CLIENT_MESSAGE_REJECTED
             usr_len = -1
     c.send(client_send_msg)
     if usr_len < 0:
@@ -55,17 +56,17 @@ def create_user(c: socket.socket) -> bool:
         return False
     usr_utf8 = c.recv(usr_len)
     username = usr_utf8.decode('utf-8')
-    c.send(b'1') # send username received
+    c.send(CLIENT_MESSAGE_APPROVED) # send username received
 
     pw_len_bytes = c.recv(1024)
     pw_len = -1
-    client_send_msg = b'1'
+    client_send_msg = CLIENT_MESSAGE_APPROVED
     if len(pw_len_bytes) > 1: # password > 256 characters
-        client_send_msg = b'0'
+        client_send_msg = CLIENT_MESSAGE_REJECTED
     else:
         pw_len = int.from_bytes(pw_len_bytes, byteorder='little')
         if pw_len > 24 or pw_len < 6:
-            client_send_msg = b'0'
+            client_send_msg = CLIENT_MESSAGE_REJECTED
             pw_len = -1
     c.send(client_send_msg)
     if pw_len < 0:
@@ -75,17 +76,17 @@ def create_user(c: socket.socket) -> bool:
         return False;
     pw_utf8 = c.recv(pw_len)
     password = pw_utf8.decode('utf-8')
-    c.send(b'1') # send pw received
+    c.send(CLIENT_MESSAGE_APPROVED) # send pw received
 
     cnfm_pw_len_bytes = c.recv(1024)
     cnfm_pw_len = -1
-    client_send_msg = b'1'
+    client_send_msg = CLIENT_MESSAGE_APPROVED
     if len(cnfm_pw_len_bytes) > 1: # password > 256 characters
-        client_send_msg = b'0'
+        client_send_msg = CLIENT_MESSAGE_REJECTED
     else:
         cnfm_pw_len = int.from_bytes(cnfm_pw_len_bytes, byteorder='little')
         if cnfm_pw_len > 24 or cnfm_pw_len < 6:
-            client_send_msg = b'0'
+            client_send_msg = CLIENT_MESSAGE_REJECTED
             cnfm_pw_len = -1
     c.send(client_send_msg)
     if cnfm_pw_len < 0:
@@ -106,20 +107,20 @@ def create_user(c: socket.socket) -> bool:
             msg = "User successfully created"
         else:
             msg = "User already exists"
-    c.send(b'1' if res else b'0')
+    c.send(CLIENT_MESSAGE_APPROVED if res else CLIENT_MESSAGE_REJECTED)
     c.send(msg.encode("ascii"))
     return res
 
-def att_login(c: socket) -> bool:
+def att_login(c: socket.socket) -> bool:
     usr_len_bytes = c.recv(1024)
     usr_len = -1
-    client_send_msg = b'1'
+    client_send_msg = CLIENT_MESSAGE_APPROVED
     if len(usr_len_bytes) > 1: # username is definitely too long, > 256
-        client_send_msg = b'0'
+        client_send_msg = CLIENT_MESSAGE_REJECTED
     else:
         usr_len = int.from_bytes(usr_len_bytes, byteorder='little')
         if usr_len > 50:
-            client_send_msg = b'0'
+            client_send_msg = CLIENT_MESSAGE_REJECTED
             usr_len = -1
     c.send(client_send_msg)
     if usr_len < 0:
@@ -129,19 +130,19 @@ def att_login(c: socket) -> bool:
         return False
     usr_utf8 = c.recv(usr_len)
     username = usr_utf8.decode('utf-8')
-    c.send(b'1') # send username received
+    c.send(CLIENT_MESSAGE_APPROVED) # send username received
 
     pw_len_bytes = c.recv(1024)
     pw_len = -1
-    client_send_msg = b'1'
+    client_send_msg = CLIENT_MESSAGE_APPROVED
     if len(pw_len_bytes) > 1: # password > 256 characters
-        client_send_msg = b'0'
+        client_send_msg = CLIENT_MESSAGE_REJECTED
     else:
         pw_len = int.from_bytes(pw_len_bytes, byteorder='little')
         if pw_len > 100:
             # potentially malicious input. We specified in user creation that
             # passwords were 6-24 characters
-            client_send_msg = b'0'
+            client_send_msg = CLIENT_MESSAGE_REJECTED
             pw_len = -1
     c.send(client_send_msg)
     if pw_len < 0:
@@ -151,12 +152,12 @@ def att_login(c: socket) -> bool:
         return False;
     pw_utf8 = c.recv(pw_len)
     password = pw_utf8.decode('utf-8')
-    c.send(b'1') # send pw received
+    c.send(CLIENT_MESSAGE_APPROVED) # send pw received
     
     res = account_store.login(username, password)
     if res == 0:
         msg = "Login successful."
-        logged_in = True
+        account_store.update_sock(username, c)
     elif res == 1:
         msg = "Incorrect password."
     elif res == 2:
@@ -315,10 +316,11 @@ def handle_user(c, addr): # thread for user
     print(f"User connected at {addr}")
 
     # send that the user is connected
-    usersocket.send("Connected".encode("ascii"))
+    c.send("Connected".encode("ascii"))
     logged_in = False
-    while True: # pre-login
-        mode = usersocket.recv(1)
+    cur_user = None
+    while not logged_in: # pre-login
+        mode = c.recv(1)
         if not mode:
             print(f"Closing connection at {addr}")
             break
@@ -327,11 +329,15 @@ def handle_user(c, addr): # thread for user
             debugprint("All users:")
             debugprint(account_store.account_list)
         elif mode.decode('ascii') == "2":
-            att_login(usersocket)
-            pass
+            logged_in, cur_user = att_login(c)
         else: # option 3. Exit
             print(f"Closing connection at {addr}")
             break
+    
+        # Only do the below if logged in, otherwise skip and
+        # repeat user login procedures
+        if (logged_in):
+            print(f"User from {addr} logged in as {cur_user}")
 
         while logged_in: # if logged in, do stuff
             mode = c.recv(1)
@@ -360,12 +366,8 @@ def handle_user(c, addr): # thread for user
                 cur_user = None
                 break
 
-    usersocket.close()
+    c.close()
     return
-    while logged_in:
-        pass
-
-    usersocket.close()
 
 def Main():
     # host and port defined in constants
@@ -399,5 +401,3 @@ def Main():
 
 if __name__ == '__main__':
     Main()
-
-

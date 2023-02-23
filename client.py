@@ -4,8 +4,10 @@ import socket
 import sys
 import os
 
-# import constants
+from _thread import *
+import threading
 
+# import constants
 from constants import *
 
 from typing import List
@@ -40,7 +42,7 @@ def create_user(s: socket.socket) -> bool:
 	usrn_len_bytes = usrn_len.to_bytes(usrn_len_bytelength, byteorder='little')
 	s.send(usrn_len_bytes)
 	ret = s.recv(1) # expect 1 bit from server
-	if ret.decode('ascii') == '0':
+	if ret == CLIENT_MESSAGE_REJECTED:
 		# Failure in username
 		retstr = s.recv(1024)
 		print(retstr.decode('ascii'))
@@ -57,7 +59,7 @@ def create_user(s: socket.socket) -> bool:
 	pw_len_bytes = pw_len.to_bytes(pw_len_bytelength, byteorder='little')
 	s.send(pw_len_bytes)		
 	ret = s.recv(1)
-	if ret.decode('ascii') == '0':
+	if ret == CLIENT_MESSAGE_REJECTED:
 		# Failure in password
 		retstr = s.recv(1024)
 		print(retstr.decode('ascii'))
@@ -71,7 +73,7 @@ def create_user(s: socket.socket) -> bool:
 	cnfm_pw_len_bytes = cnfm_pw_len.to_bytes(cnfm_pw_len_bytelength, byteorder='little')
 	s.send(cnfm_pw_len_bytes)		
 	ret = s.recv(1)
-	if ret.decode('ascii') == '0':
+	if ret == CLIENT_MESSAGE_REJECTED:
 		# Failure in confirm password
 		retstr = s.recv(1024)
 		print(retstr.decode('ascii'))
@@ -80,11 +82,14 @@ def create_user(s: socket.socket) -> bool:
 	s.send(cnfm_pw_utf8)
 
 	# Final message from server
-	ret = s.recv(1) # final status, b'1' or b'0'
+	ret = s.recv(1) # final status, CLIENT_MESSAGE_APPROVED/CLIENT_MESSAGE_REJECTED
 	retstr = s.recv(1024)
 	print(retstr.decode('ascii'))
 
-def att_login(s: socket) -> int:
+def att_login(s: socket.socket) -> int:
+	"""
+	Prompts user for inputs to login to application
+	"""
 	username = input("Enter username: ")
 	usrn_utf8 = username.encode('utf-8')
 	usrn_len = len(usrn_utf8)
@@ -92,7 +97,7 @@ def att_login(s: socket) -> int:
 	usrn_len_bytes = usrn_len.to_bytes(usrn_len_bytelength, byteorder='little')
 	s.send(usrn_len_bytes)
 	ret = s.recv(1) # expect 1 bit from server
-	if ret.decode('ascii') == '0':
+	if ret == CLIENT_MESSAGE_REJECTED:
 		# Failure in username
 		retstr = s.recv(1024)
 		print(retstr.decode('ascii'))
@@ -107,7 +112,7 @@ def att_login(s: socket) -> int:
 	pw_len_bytes = pw_len.to_bytes(pw_len_bytelength, byteorder='little')
 	s.send(pw_len_bytes)		
 	ret = s.recv(1)
-	if ret.decode('ascii') == '0':
+	if ret == CLIENT_MESSAGE_REJECTED:
 		# Failure in password
 		retstr = s.recv(1024)
 		print(retstr.decode('ascii'))
@@ -291,6 +296,7 @@ def Main():
 		debugprint("Connection successful")
 
 	logged_in = False
+	cur_user = None
 	while not logged_in:
 		print("Options:\n1. Create account\n2. Login\n3. Exit")
 		choice = ""
@@ -302,10 +308,13 @@ def Main():
 		if choice == "1":
 			create_user(s)
 		elif choice == "2":
-			res = att_login(s)
+			res, cur_user = att_login(s)
 			if res == 0:
 				logged_in = True
-		else:
+		else: # choice == "3"
+			ans = input("Are you sure you want to exit? (enter 'y' to confirm) ")
+			if (ans != 'y'):
+				continue
 			s.close()
 			return
 		print()
@@ -353,5 +362,3 @@ def Main():
 
 if __name__ == '__main__':
 	Main()
-
-
