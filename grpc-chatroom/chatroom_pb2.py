@@ -13,27 +13,21 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0e\x63hatroom.proto\x12\x08\x63hatroom\"#\n\x07\x41\x63\x63ount\x12\n\n\x02id\x18\x01 \x01(\x05\x12\x0c\n\x04name\x18\x02 \x01(\t\">\n\tAccountID\x12\n\n\x02id\x18\x01 \x01(\x05\x12%\n\x05reply\x18\x02 \x01(\x0b\x32\x16.chatroom.requestReply\"B\n\x0b\x41\x63\x63ountName\x12\x0c\n\x04name\x18\x01 \x01(\t\x12%\n\x05reply\x18\x02 \x01(\x0b\x32\x16.chatroom.requestReply\"5\n\x0clistAccounts\x12%\n\x05reply\x18\x01 \x01(\x0b\x32\x16.chatroom.requestReply\";\n\x04Text\x12\x0c\n\x04text\x18\x01 \x01(\t\x12%\n\x05reply\x18\x02 \x01(\x0b\x32\x16.chatroom.requestReply\">\n\x08sendText\x12\x10\n\x08senderID\x18\x01 \x01(\x05\x12\x12\n\nreceiverID\x18\x02 \x01(\x05\x12\x0c\n\x04text\x18\x03 \x01(\t\"\x1d\n\x0crequestReply\x12\r\n\x05reply\x18\x01 \x01(\t2\xb8\x02\n\x08\x43hatRoom\x12:\n\rCreateAccount\x12\x11.chatroom.Account\x1a\x16.chatroom.requestReply\x12:\n\rDeleteAccount\x12\x11.chatroom.Account\x1a\x16.chatroom.requestReply\x12<\n\x0eGetAccountName\x12\x13.chatroom.AccountID\x1a\x15.chatroom.AccountName\x12>\n\x0cListAccounts\x12\x16.chatroom.listAccounts\x1a\x16.chatroom.requestReply\x12\x36\n\x08SendText\x12\x12.chatroom.sendText\x1a\x16.chatroom.requestReplyb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0e\x63hatroom.proto\x12\x08\x63hatroom\"*\n\x04User\x12\x10\n\x08username\x18\x01 \x01(\t\x12\x10\n\x08password\x18\x02 \x01(\t\"#\n\x08UserList\x12\x17\n\x0fpartialusername\x18\x01 \x01(\t\"L\n\x07Message\x12\x16\n\x0esenderusername\x18\x01 \x01(\t\x12\x18\n\x10receiverusername\x18\x02 \x01(\t\x12\x0f\n\x07message\x18\x03 \x01(\t\"/\n\x0crequestReply\x12\x0e\n\x06status\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t2\xc0\x03\n\x08\x43hatRoom\x12\x34\n\nCreateUser\x12\x0e.chatroom.User\x1a\x16.chatroom.requestReply\x12/\n\x05Login\x12\x0e.chatroom.User\x1a\x16.chatroom.requestReply\x12\x30\n\x06Logout\x12\x0e.chatroom.User\x1a\x16.chatroom.requestReply\x12\x34\n\nDeleteUser\x12\x0e.chatroom.User\x1a\x16.chatroom.requestReply\x12\x37\n\tListUsers\x12\x12.chatroom.UserList\x1a\x16.chatroom.requestReply\x12\x38\n\x0bSendMessage\x12\x11.chatroom.Message\x1a\x16.chatroom.requestReply\x12\x35\n\x0eIncomingStream\x12\x0e.chatroom.User\x1a\x11.chatroom.Message0\x01\x12;\n\x0e\x44\x65liverMessage\x12\x11.chatroom.Message\x1a\x16.chatroom.requestReplyb\x06proto3')
 
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, globals())
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'chatroom_pb2', globals())
 if _descriptor._USE_C_DESCRIPTORS == False:
 
   DESCRIPTOR._options = None
-  _ACCOUNT._serialized_start=28
-  _ACCOUNT._serialized_end=63
-  _ACCOUNTID._serialized_start=65
-  _ACCOUNTID._serialized_end=127
-  _ACCOUNTNAME._serialized_start=129
-  _ACCOUNTNAME._serialized_end=195
-  _LISTACCOUNTS._serialized_start=197
-  _LISTACCOUNTS._serialized_end=250
-  _TEXT._serialized_start=252
-  _TEXT._serialized_end=311
-  _SENDTEXT._serialized_start=313
-  _SENDTEXT._serialized_end=375
-  _REQUESTREPLY._serialized_start=377
-  _REQUESTREPLY._serialized_end=406
-  _CHATROOM._serialized_start=409
-  _CHATROOM._serialized_end=721
+  _USER._serialized_start=28
+  _USER._serialized_end=70
+  _USERLIST._serialized_start=72
+  _USERLIST._serialized_end=107
+  _MESSAGE._serialized_start=109
+  _MESSAGE._serialized_end=185
+  _REQUESTREPLY._serialized_start=187
+  _REQUESTREPLY._serialized_end=234
+  _CHATROOM._serialized_start=237
+  _CHATROOM._serialized_end=685
 # @@protoc_insertion_point(module_scope)

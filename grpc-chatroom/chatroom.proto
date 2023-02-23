@@ -2,51 +2,37 @@ syntax = "proto3";
 
 package chatroom;
 
-message Account {
-    int32 id = 1;
-    string name = 2;
+message User {
+    string username = 1;
+    string password = 2;
 }
 
-message AccountID {
-    int32 id = 1;
-    requestReply reply = 2;
+message UserList {
+    string partialusername = 1;
 }
 
-message AccountName {
-    string name = 1;
-    requestReply reply = 2;
+message Message {
+    string senderusername = 1;
+    string receiverusername = 2;
+    string message = 3;
 }
-
-message listAccounts {
-    requestReply reply = 1;
-}
-
-message Text {
-    string text = 1;
-    requestReply reply = 2;
-}
-
-// check on if this is most valid
-message sendText {
-    int32 senderID = 1;
-    int32 receiverID = 2;
-    string text = 3;
-}
-
-// one to receive texts?
-
 
 message requestReply {
-    string reply = 1;
+    bool status = 1;
+    string message = 2;
 }
 
 service ChatRoom {
-    rpc CreateAccount (Account) returns (requestReply);
-    rpc DeleteAccount (Account) returns (requestReply);
-    rpc GetAccountName (AccountID) returns (AccountName);
-    rpc ListAccounts (listAccounts) returns (requestReply);
-    rpc SendText (sendText) returns (requestReply);
-
+    rpc CreateUser (User) returns (requestReply);
+    rpc Login (User) returns (requestReply);
+    rpc Logout (User) returns (requestReply);
+    rpc DeleteUser (User) returns (requestReply);
+    rpc ListUsers (UserList) returns (requestReply);
+    
+    rpc SendMessage (Message) returns (requestReply);
+    rpc IncomingStream(User) returns (stream Message);
+    rpc DeliverMessage(Message) returns (requestReply);
 }
 
+// compile using:
 // python3 -m grpc_tools.protoc -I../grpc-chatroom --python_out=. --pyi_out=. --grpc_python_out=. ../grpc-chatroom/chatroom.proto

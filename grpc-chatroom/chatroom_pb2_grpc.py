@@ -14,29 +14,44 @@ class ChatRoomStub(object):
         Args:
             channel: A grpc.Channel.
         """
-        self.CreateAccount = channel.unary_unary(
-                '/chatroom.ChatRoom/CreateAccount',
-                request_serializer=chatroom__pb2.Account.SerializeToString,
+        self.CreateUser = channel.unary_unary(
+                '/chatroom.ChatRoom/CreateUser',
+                request_serializer=chatroom__pb2.User.SerializeToString,
                 response_deserializer=chatroom__pb2.requestReply.FromString,
                 )
-        self.DeleteAccount = channel.unary_unary(
-                '/chatroom.ChatRoom/DeleteAccount',
-                request_serializer=chatroom__pb2.Account.SerializeToString,
+        self.Login = channel.unary_unary(
+                '/chatroom.ChatRoom/Login',
+                request_serializer=chatroom__pb2.User.SerializeToString,
                 response_deserializer=chatroom__pb2.requestReply.FromString,
                 )
-        self.GetAccountName = channel.unary_unary(
-                '/chatroom.ChatRoom/GetAccountName',
-                request_serializer=chatroom__pb2.AccountID.SerializeToString,
-                response_deserializer=chatroom__pb2.AccountName.FromString,
-                )
-        self.ListAccounts = channel.unary_unary(
-                '/chatroom.ChatRoom/ListAccounts',
-                request_serializer=chatroom__pb2.listAccounts.SerializeToString,
+        self.Logout = channel.unary_unary(
+                '/chatroom.ChatRoom/Logout',
+                request_serializer=chatroom__pb2.User.SerializeToString,
                 response_deserializer=chatroom__pb2.requestReply.FromString,
                 )
-        self.SendText = channel.unary_unary(
-                '/chatroom.ChatRoom/SendText',
-                request_serializer=chatroom__pb2.sendText.SerializeToString,
+        self.DeleteUser = channel.unary_unary(
+                '/chatroom.ChatRoom/DeleteUser',
+                request_serializer=chatroom__pb2.User.SerializeToString,
+                response_deserializer=chatroom__pb2.requestReply.FromString,
+                )
+        self.ListUsers = channel.unary_unary(
+                '/chatroom.ChatRoom/ListUsers',
+                request_serializer=chatroom__pb2.UserList.SerializeToString,
+                response_deserializer=chatroom__pb2.requestReply.FromString,
+                )
+        self.SendMessage = channel.unary_unary(
+                '/chatroom.ChatRoom/SendMessage',
+                request_serializer=chatroom__pb2.Message.SerializeToString,
+                response_deserializer=chatroom__pb2.requestReply.FromString,
+                )
+        self.IncomingStream = channel.unary_stream(
+                '/chatroom.ChatRoom/IncomingStream',
+                request_serializer=chatroom__pb2.User.SerializeToString,
+                response_deserializer=chatroom__pb2.Message.FromString,
+                )
+        self.DeliverMessage = channel.unary_unary(
+                '/chatroom.ChatRoom/DeliverMessage',
+                request_serializer=chatroom__pb2.Message.SerializeToString,
                 response_deserializer=chatroom__pb2.requestReply.FromString,
                 )
 
@@ -44,31 +59,49 @@ class ChatRoomStub(object):
 class ChatRoomServicer(object):
     """Missing associated documentation comment in .proto file."""
 
-    def CreateAccount(self, request, context):
+    def CreateUser(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def DeleteAccount(self, request, context):
+    def Login(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def GetAccountName(self, request, context):
+    def Logout(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def ListAccounts(self, request, context):
+    def DeleteUser(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def SendText(self, request, context):
+    def ListUsers(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def SendMessage(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def IncomingStream(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def DeliverMessage(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -77,29 +110,44 @@ class ChatRoomServicer(object):
 
 def add_ChatRoomServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'CreateAccount': grpc.unary_unary_rpc_method_handler(
-                    servicer.CreateAccount,
-                    request_deserializer=chatroom__pb2.Account.FromString,
+            'CreateUser': grpc.unary_unary_rpc_method_handler(
+                    servicer.CreateUser,
+                    request_deserializer=chatroom__pb2.User.FromString,
                     response_serializer=chatroom__pb2.requestReply.SerializeToString,
             ),
-            'DeleteAccount': grpc.unary_unary_rpc_method_handler(
-                    servicer.DeleteAccount,
-                    request_deserializer=chatroom__pb2.Account.FromString,
+            'Login': grpc.unary_unary_rpc_method_handler(
+                    servicer.Login,
+                    request_deserializer=chatroom__pb2.User.FromString,
                     response_serializer=chatroom__pb2.requestReply.SerializeToString,
             ),
-            'GetAccountName': grpc.unary_unary_rpc_method_handler(
-                    servicer.GetAccountName,
-                    request_deserializer=chatroom__pb2.AccountID.FromString,
-                    response_serializer=chatroom__pb2.AccountName.SerializeToString,
-            ),
-            'ListAccounts': grpc.unary_unary_rpc_method_handler(
-                    servicer.ListAccounts,
-                    request_deserializer=chatroom__pb2.listAccounts.FromString,
+            'Logout': grpc.unary_unary_rpc_method_handler(
+                    servicer.Logout,
+                    request_deserializer=chatroom__pb2.User.FromString,
                     response_serializer=chatroom__pb2.requestReply.SerializeToString,
             ),
-            'SendText': grpc.unary_unary_rpc_method_handler(
-                    servicer.SendText,
-                    request_deserializer=chatroom__pb2.sendText.FromString,
+            'DeleteUser': grpc.unary_unary_rpc_method_handler(
+                    servicer.DeleteUser,
+                    request_deserializer=chatroom__pb2.User.FromString,
+                    response_serializer=chatroom__pb2.requestReply.SerializeToString,
+            ),
+            'ListUsers': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListUsers,
+                    request_deserializer=chatroom__pb2.UserList.FromString,
+                    response_serializer=chatroom__pb2.requestReply.SerializeToString,
+            ),
+            'SendMessage': grpc.unary_unary_rpc_method_handler(
+                    servicer.SendMessage,
+                    request_deserializer=chatroom__pb2.Message.FromString,
+                    response_serializer=chatroom__pb2.requestReply.SerializeToString,
+            ),
+            'IncomingStream': grpc.unary_stream_rpc_method_handler(
+                    servicer.IncomingStream,
+                    request_deserializer=chatroom__pb2.User.FromString,
+                    response_serializer=chatroom__pb2.Message.SerializeToString,
+            ),
+            'DeliverMessage': grpc.unary_unary_rpc_method_handler(
+                    servicer.DeliverMessage,
+                    request_deserializer=chatroom__pb2.Message.FromString,
                     response_serializer=chatroom__pb2.requestReply.SerializeToString,
             ),
     }
@@ -113,7 +161,7 @@ class ChatRoom(object):
     """Missing associated documentation comment in .proto file."""
 
     @staticmethod
-    def CreateAccount(request,
+    def CreateUser(request,
             target,
             options=(),
             channel_credentials=None,
@@ -123,14 +171,14 @@ class ChatRoom(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/chatroom.ChatRoom/CreateAccount',
-            chatroom__pb2.Account.SerializeToString,
+        return grpc.experimental.unary_unary(request, target, '/chatroom.ChatRoom/CreateUser',
+            chatroom__pb2.User.SerializeToString,
             chatroom__pb2.requestReply.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
     @staticmethod
-    def DeleteAccount(request,
+    def Login(request,
             target,
             options=(),
             channel_credentials=None,
@@ -140,14 +188,14 @@ class ChatRoom(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/chatroom.ChatRoom/DeleteAccount',
-            chatroom__pb2.Account.SerializeToString,
+        return grpc.experimental.unary_unary(request, target, '/chatroom.ChatRoom/Login',
+            chatroom__pb2.User.SerializeToString,
             chatroom__pb2.requestReply.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
     @staticmethod
-    def GetAccountName(request,
+    def Logout(request,
             target,
             options=(),
             channel_credentials=None,
@@ -157,31 +205,14 @@ class ChatRoom(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/chatroom.ChatRoom/GetAccountName',
-            chatroom__pb2.AccountID.SerializeToString,
-            chatroom__pb2.AccountName.FromString,
-            options, channel_credentials,
-            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
-
-    @staticmethod
-    def ListAccounts(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/chatroom.ChatRoom/ListAccounts',
-            chatroom__pb2.listAccounts.SerializeToString,
+        return grpc.experimental.unary_unary(request, target, '/chatroom.ChatRoom/Logout',
+            chatroom__pb2.User.SerializeToString,
             chatroom__pb2.requestReply.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
     @staticmethod
-    def SendText(request,
+    def DeleteUser(request,
             target,
             options=(),
             channel_credentials=None,
@@ -191,8 +222,76 @@ class ChatRoom(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/chatroom.ChatRoom/SendText',
-            chatroom__pb2.sendText.SerializeToString,
+        return grpc.experimental.unary_unary(request, target, '/chatroom.ChatRoom/DeleteUser',
+            chatroom__pb2.User.SerializeToString,
+            chatroom__pb2.requestReply.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def ListUsers(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/chatroom.ChatRoom/ListUsers',
+            chatroom__pb2.UserList.SerializeToString,
+            chatroom__pb2.requestReply.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def SendMessage(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/chatroom.ChatRoom/SendMessage',
+            chatroom__pb2.Message.SerializeToString,
+            chatroom__pb2.requestReply.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def IncomingStream(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_stream(request, target, '/chatroom.ChatRoom/IncomingStream',
+            chatroom__pb2.User.SerializeToString,
+            chatroom__pb2.Message.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def DeliverMessage(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/chatroom.ChatRoom/DeliverMessage',
+            chatroom__pb2.Message.SerializeToString,
             chatroom__pb2.requestReply.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
