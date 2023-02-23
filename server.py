@@ -6,6 +6,7 @@ import sys
 import os
 # import mysql.connector
 import random
+import re
 
  
 # import thread module
@@ -15,107 +16,27 @@ import threading
 accountName_table={}
 accountBalance_table={}
 
-p_lock = threading.Lock()
+#p_lock = threading.Lock()
 
 # import constants
 from constants import *
 
+from handlers import *
 
 
-# log in function
-# logins in user if username and password are correct
-# returns true if successful, false otherwise. Save as Global Variable
-# for future operations, CHECK IF LOGGED IN, then do operations
-
-# receive messages
-# returns list of messages (with sender, timestamp) if successful, false otherwise
-
-# send messages
-# sends message to specified user if they exist
-
-# log out function
-# logs out user if successful, false otherwise
-
-# delete account function
-# deletes account if successful, false otherwise
-
-
-class AccountHandler:
-    def __init__(self, store = {}):
-        self.account_list = store # username: password
-        # username: currently online or not
-        self.is_online = {usr: False for usr in self.account_list.keys()}
-    
-    def _create_account(self, username, password):
-        if username in self.account_list:
-            return False
-        self.account_list[username] = password
-        self.is_online[username] = False
-        return True
-
-    # check if username and password match
-    def login(self, username: str, password: str) -> int:
-        """Returns a bunch of status codes:
-        0: success
-        1: incorrect password
-        2: user is already logged in
-        3: user not found
-        """
-        if not (username in self.account_list):
-            return 3
-        chk = self.account_list[username] == password
-        if not chk:
-            return 1
-        elif (self.is_online[username]):
-            return 2
-        self.is_online[username] = chk
-        return 0
-
-    # Moses: will fix below logout/delete account
-    def logout(self, username) -> bool:
-        # Assumes that the user is already logged in.
-        if not (username in self.account_list):
-            return False
-        if not (self.is_online[username]): # check if logged in
-            return False
-        self.is_online[username] = False
-        return True
-
-    def delete_account(self, username):
-        # Assumes that the user is logged in.
-        if not (username in self.account_list):
-            return False
-        del self.account_list[username]
-        del self.is_online[username]
-        return True
-
+debugprint = print
+debugprint = lambda *args: None
+# uncomment the line above when not debugging
     
 # Message Storing mechanisms below
 account_store = AccountHandler()
 
-class MessageHandler:
-    def __init__(self, store = {}):
-        self.message_store = store # username: [message, message, ...]
+message_handler = MessageHandler()
 
-    def _store_message(self, username, message):
-        if not (username in self.message_store):
-            self.message_store[username] = []
-        self.message_store[username].append(message)
-        return True
+##### Helper Functions
 
-    def _get_messages(self, username):
-        if not (username in self.message_store):
-            return []
-        return self.message_store[username]
-
-    def _delete_messages(self, username):
-        if not (username in self.message_store):
-            return False
-        del self.message_store[username]
-        return True
-
-
-def create_user(c: socket) -> bool:
+# Creates a user, taking inputs from socket c
+def create_user(c: socket.socket) -> bool:
     usr_len_bytes = c.recv(1024)
     usr_len = -1
     client_send_msg = b'1'
@@ -129,7 +50,7 @@ def create_user(c: socket) -> bool:
     c.send(client_send_msg)
     if usr_len < 0:
         msg = "Username is too long"
-        print(msg)
+        debugprint(msg)
         c.send(msg.encode('ascii'))
         return False
     usr_utf8 = c.recv(usr_len)
@@ -149,7 +70,7 @@ def create_user(c: socket) -> bool:
     c.send(client_send_msg)
     if pw_len < 0:
         msg = "Password must be between 6 and 24 characters"
-        print(msg)
+        debugprint(msg)
         c.send(msg.encode('ascii'))
         return False;
     pw_utf8 = c.recv(pw_len)
@@ -169,12 +90,12 @@ def create_user(c: socket) -> bool:
     c.send(client_send_msg)
     if cnfm_pw_len < 0:
         msg = "Password must be between 6 and 24 characters"
-        print(msg)
+        debugprint(msg)
         c.send(msg.encode('ascii'))
         return False;
     cnfm_pw_utf8 = c.recv(cnfm_pw_len)
     cnfmpw = cnfm_pw_utf8.decode('utf-8')
-    print(f"Decoded confirm: {cnfmpw}")
+    debugprint(f"Decoded confirm: {cnfmpw}")
     
     res = False
     if password != cnfmpw:
@@ -203,7 +124,7 @@ def att_login(c: socket) -> bool:
     c.send(client_send_msg)
     if usr_len < 0:
         msg = "Username is too long"
-        print(msg)
+        debugprint(msg)
         c.send(msg.encode('ascii'))
         return False
     usr_utf8 = c.recv(usr_len)
@@ -225,7 +146,7 @@ def att_login(c: socket) -> bool:
     c.send(client_send_msg)
     if pw_len < 0:
         msg = "Password incorrect"
-        print(msg)
+        debugprint(msg)
         c.send(msg.encode('ascii'))
         return False;
     pw_utf8 = c.recv(pw_len)
@@ -243,9 +164,154 @@ def att_login(c: socket) -> bool:
     else: #res == 3
         msg = "User does not exist."
     c.send(str(res).encode('ascii'))
+    c.send(len(msg.encode('ascii')).to_bytes(1,byteorder="little"))
     c.send(msg.encode('ascii'))
+    if (res == 0): # have to have this call after so that client can login first
+        attempt_deliver_messages(username)
+    return (res == 0), username
 
-def handle_user(usersocket, addr): # thread for user
+def attempt_deliver_messages(target: str):
+    # return
+    if not account_store.is_online[target]:
+        return False
+    # Assumes target is online, so has a corersponding socket
+    c = account_store.sock[target] # c: socket.socket
+    debugprint(f"Sending to {c}")
+    unsent, idx = message_handler.fetch_messages(target)
+    if len(unsent) == 0:
+        return False #sending nothing
+    for message in unsent:
+        bytestr = SERVER_SENDING_MESSAGE +\
+                  (len(message.sender.encode('utf-8'))).to_bytes(1, byteorder="little") +\
+                  message.sender.encode('utf-8')
+        c.send(bytestr) # send name of sender
+        bytestr = SERVER_SENDING_MESSAGE +\
+                  (len(message.content[0])).to_bytes(1, byteorder="little") +\
+                  message.content[0]
+        c.send(bytestr) # send number of chunks
+        for i in range(1, len(message.content)):
+            # some string that we send, enforced to be < 280 utf-8 (or <280 * 4)
+            string = message.content[i].encode('utf-8')
+            ln = len(string).to_bytes(2, byteorder='little')
+            bytestr = SERVER_SENDING_MESSAGE + ln + string
+            c.send(bytestr)
+    message_handler.last_idx[target] = idx
+    return True
+            
+        
+def pack_send_info(msg: str):
+    return CLIENT_MESSAGE_SENDING_INFO +\
+           len(msg.encode('ascii')).to_bytes(1, byteorder="little") +\
+           msg.encode('ascii')
+
+def user_send_msg(c: socket.socket, sender: str) -> bool:
+    debugprint("Start receive message")
+    usr_len_bytes = c.recv(1024)
+    usr_len = -1
+    client_send_msg = CLIENT_MESSAGE_APPROVED
+    if len(usr_len_bytes) > 1:
+        client_send_msg = CLIENT_MESSAGE_REJECTED
+    else:
+        usr_len = int.from_bytes(usr_len_bytes, byteorder='little')
+        if usr_len > 50:
+            client_send_msg = CLIENT_MESSAGE_REJECTED
+            usr_len = -1
+    c.send(client_send_msg)
+    if usr_len < 0: # Rejected case
+        c.send(pack_send_info("User not found"))
+        return False
+    usr_utf8 = c.recv(usr_len)
+    recipient = usr_utf8.decode('utf-8')
+    if not account_store.user_exists(recipient):
+        c.send(CLIENT_MESSAGE_REJECTED)
+        c.send(pack_send_info("Recipient does not exist"))
+        return
+    else:
+        c.send(CLIENT_MESSAGE_APPROVED)
+    # Handling recipient done, now handle receive messages
+    num_chunk_bytes = c.recv(1024)
+    num_chunks = int.from_bytes(num_chunk_bytes, byteorder="little")
+    if num_chunks > MAX_MSG_CHUNK or num_chunks <= 0:
+        # Next two lines emptys the socket send queue, in case client sends a ton of data
+        tmp = c.recv(1024)
+        while tmp: tmp = c.recv(1024)
+        c.send(CLIENT_MESSAGE_REJECTED)
+        c.send(pack_send_info("Message is too long to send"))
+        return
+    else:
+        c.send(CLIENT_MESSAGE_APPROVED)
+    complete_msg = [num_chunk_bytes]
+    for i in range(num_chunks):
+        msg_len_bytes = c.recv(1024)
+        c.send(CLIENT_MESSAGE_APPROVED)
+        msg_len = int.from_bytes(msg_len_bytes, byteorder="little")
+        msg_utf8 = c.recv(msg_len).decode('utf-8')
+        complete_msg.append(msg_utf8)
+        c.send(CLIENT_MESSAGE_APPROVED)
+    message_handler.push_new_message(recipient, sender, complete_msg)
+    debugprint(f"Have {message_handler.message_count} messages")
+    debugprint(message_handler.message_store)
+    attempt_deliver_messages(recipient)
+    
+
+def att_delete_account(c: socket.socket, username: str) -> bool:
+    usr_len_bytes = c.recv(1024)
+    usr_len = -1
+    if not usr_len_bytes:
+        pass
+    elif len(usr_len_bytes) <= 1: #Within allowable range
+        usr_len = int.from_bytes(usr_len_bytes, byteorder='little')
+        if usr_len > 50:
+            usr_len = -1
+    if usr_len < 0: # Rejected case
+        c.send(CLIENT_MESSAGE_REJECTED)
+        c.send(pack_send_info("Confirmation failed - invalid input"))
+        return False
+    # Passes initial check, get username
+    c.send(CLIENT_MESSAGE_APPROVED)
+    usr_utf8 = c.recv(usr_len)
+    cmp_usr = usr_utf8.decode('utf-8')
+    if cmp_usr != username or (not account_store.delete_account(username)):
+        c.send(CLIENT_MESSAGE_REJECTED)
+        c.send(pack_send_info("Confirmation failed - invalid username"))
+        return False
+    c.send(CLIENT_MESSAGE_APPROVED)
+    c.send(pack_send_info("Confirmed -- user successfully deleted"))
+    return True
+    
+def list_all_users(c: socket.socket): # done
+    sz = c.recv(1, socket.MSG_PEEK)
+    if not sz:
+        debugprint("No data received -- list all users")
+        return
+    sz = int.from_bytes(sz, byteorder="little")
+    debugprint("Recv size {sz}")
+    regexstr = c.recv(1+sz).decode('utf-8')[1:]
+    debugprint("Compiling: ", regexstr)
+    try:
+        if (regexstr == ""): raise re.error("empty str go default")
+        debugprint(fr"{regexstr}")
+        r = re.compile(regexstr)
+    except re.error:
+        r = re.compile(r'.');
+    debugprint(r.__repr__())
+    debugprint(r.search("test"))
+    
+    debugprint(list(r.search(x) for x in account_store.account_list.keys()))
+    lst = list(filter(lambda x: not (r.search(x) is None), account_store.account_list.keys()))
+    debugprint(f"List: {lst}")
+    lst.sort()
+    num_users = len(lst)
+    num_users_bytes = num_users.to_bytes(CLIENT_ACCOUNT_LIST_NBYTES, byteorder='little')
+    c.send(CLIENT_RETRIEVE_ACCOUNT_LIST + num_users_bytes)
+    for username in lst:
+        usr = username.encode('utf-8')
+        usr_len = len(usr)
+        c.send(CLIENT_ACCOUNT_SENDING + \
+               usr_len.to_bytes(CLIENT_ACCOUNT_LIST_NBYTES, byteorder='little') + \
+               usr)
+
+def handle_user(c, addr): # thread for user
     print(f"User connected at {addr}")
 
     # send that the user is connected
@@ -257,9 +323,9 @@ def handle_user(usersocket, addr): # thread for user
             print(f"Closing connection at {addr}")
             break
         if mode.decode('ascii') == "1":
-            create_user(usersocket)
-            print("All users:")
-            print(account_store.account_list)
+            create_user(c)
+            debugprint("All users:")
+            debugprint(account_store.account_list)
         elif mode.decode('ascii') == "2":
             att_login(usersocket)
             pass
@@ -267,8 +333,32 @@ def handle_user(usersocket, addr): # thread for user
             print(f"Closing connection at {addr}")
             break
 
-    while logged_in: # if logged in, do stuff
-        pass
+        while logged_in: # if logged in, do stuff
+            mode = c.recv(1)
+            if not mode:
+                print(f"Closing connection at {addr}")
+                break
+            mode = mode.decode('ascii')
+            print(f"User at {addr}: {mode}")
+            if mode == "1":
+                user_send_msg(c, cur_user)
+            elif mode == "2":
+                if (att_delete_account(c, cur_user)):
+                    mode = c.recv(1) # used for blocking purposes
+                    c.send(CLIENT_LOGGING_OUT)
+                    logged_in = False
+                    cur_user = None
+                debugprint("All users:")
+                debugprint(account_store.account_list)
+            elif mode == "3":
+                list_all_users(c)
+            else: # mode == "4"
+                c.send(CLIENT_LOGGING_OUT)
+                account_store.logout(cur_user)
+                print(f"User at {addr} logged out from {cur_user}")
+                logged_in = False
+                cur_user = None
+                break
 
     usersocket.close()
     return
@@ -282,11 +372,11 @@ def Main():
 
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.bind((HOST, PORT))
-    print("socket binded to port", PORT)
+    debugprint("socket binded to port", PORT)
  
     # put the socket into listening mode
     s.listen(5)
-    print("socket is listening")
+    debugprint("socket is listening")
  
     # a forever loop until client wants to exit
     try:
@@ -307,96 +397,6 @@ def Main():
         return
     s.close()
 
-# thread function for BANK TRANSACTIONS
-def threaded(c):
-    while True:
-        data_list=[]
-        # data received from client
-        data = c.recv(1024)
-        data_str = data.decode('UTF-8')
-        if not data:
-            print('Bye')
-            break
-        print(data_str+"\n")
-        #data_str = str(data)
-        data_list = data_str.split('|')
-        opcode = data_list[0]
-        #opcode = opcode_b[2:]
-        print("Opcode:" + str(opcode))
-
-        if opcode == '1':
-            #account creation
-            accountID  = str(random.randint(0,1000))
-            accountName_table[accountID] = str(data_list[1])
-            accountBalance_table[accountID] = str(0)
-            print("key: " + str(accountID) + "\n")
-            data = "Account ID: " + str(accountID)+"\n"
-        elif opcode == '2':
-            #deposit money
-
-            accountID = str(data_list[1])
-            print("key: " + str(data_list[1]) + "\n")
-            if accountID in accountName_table:
-                print("key exists: " + str(accountID) + " old balance:"+  str(accountBalance_table[accountID]) + "\n")
-                balance = accountBalance_table[accountID]
-                accountBalance_table[accountID] = str(int(balance) + int(data_list[2]))
-                data = "Account ID: " +  str(accountID) + " New Balance: "+  str(accountBalance_table[accountID]) +"\n"
-            else:
-                print("key doesnt exist: " + str(accountID)  + "\n")
-                data = "Account ID: " +  str(accountID) + " doesn't exist \n"
-        elif opcode == '3':
-            #withdraw money
-            accountID = str(data_list[1])
-            print("key: " + str(data_list[1]) + "\n")
-            if accountID in accountName_table:
-                print("key exists: " + str(accountID) + " old balance:"+  str(accountBalance_table[accountID]) + "\n")
-                balance = accountBalance_table[accountID]
-                tempBalance = int(balance) - int(data_list[2])
-                if tempBalance >0:
-                    accountBalance_table[accountID] = str(tempBalance)
-                    data = "Account ID: " +  str(accountID) + " New Balance: "+  str(accountBalance_table[accountID]) +"\n"
-                else:
-                    data = "Account ID: " +  str(accountID) + " balance too low!" + "\n"
-            else:
-                print("key doesnt exist: " + str(accountID)  + "\n")
-                data = "Account ID: " +  str(accountID) + " doesn't exist \n"
-        elif opcode == '4':
-            #view balance
-            accountID = data_list[1]
-            data = "Account ID: " +  str(accountID) + " New Balance: " + str(accountBalance_table[accountID]) +"\n"
-        else:
-            data = "Invalid Request\n"
-
-        # send back reversed string to client
-        c.send(data.encode('ascii')) 
-    # connection closed
-    
-    c.close()
-
-def bankMain():
-
-    # host and port defined in constants
-
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.bind((HOST, PORT))
-    print("socket binded to port", PORT)
- 
-    # put the socket into listening mode
-    s.listen(5)
-    print("socket is listening")
- 
-    # a forever loop until client wants to exit
-    while True:
-
-        # establish connection with client
-        c, addr = s.accept()     
-        print('Connected to :', addr[0], ':', addr[1])
-
-        # Start a new thread and return its identifier
-        start_new_thread(threaded, (c,))
-    s.close()
- 
- 
 if __name__ == '__main__':
     Main()
 
