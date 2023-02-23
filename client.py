@@ -190,6 +190,7 @@ def recv_handler_thread(s: socket.socket):
 					ln = int.from_bytes(s.recv(1), byteorder="little")
 					cur = s.recv(ln)
 				# CLIENT_RETRIEVE_ACCOUNT_LIST indicates account list is being sent
+				elif cur == CLIENT_RETRIEVE_ACCOUNT_LIST:
 					cur = s.recv(CLIENT_ACCOUNT_LIST_NBYTES)
 				# CLIENT_ACCOUNT_SENDING indicates account name being sent
 				elif cur == CLIENT_ACCOUNT_SENDING:
