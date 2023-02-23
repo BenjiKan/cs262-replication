@@ -134,6 +134,9 @@ client_interactions_q = deque() # Handles messages client -> server confirm
 msg_q_lock = threading.Lock()
 cross_message_q = deque() # Handles server -> client messages
 def recv_handler_thread(s: socket.socket):
+	"""
+	Handles all recv calls to the socket
+	"""
 	# We make sure that all recv calls are kept to here.
 	# Other parts can recv by using the queues
 	#print("Thread created")
@@ -189,6 +192,9 @@ def recv_handler_thread(s: socket.socket):
 				debugprint("Ill-formed response received from server")
 
 def client_get_response():
+	"""
+	Blocks until a response is received from the server
+	"""
 	elt = None
 	while not elt:
 		client_q_lock.acquire()
@@ -198,6 +204,9 @@ def client_get_response():
 	return elt
 
 def msg_get_response():
+	"""
+	Checks for response for message
+	"""
 	elt = None
 	while not elt:
 		msg_q_lock.acquire()
@@ -207,6 +216,9 @@ def msg_get_response():
 	return elt
 
 def send_new_msg(s: socket.socket) -> bool:
+	"""
+	Sends a new message to a user
+	"""
 	recipient = input("Enter user: ")
 	rec_utf8 = recipient.encode('utf-8')
 	rec_len = len(rec_utf8)
@@ -253,6 +265,9 @@ def send_new_msg(s: socket.socket) -> bool:
 	return
 
 def delete_account(s: socket.socket) -> bool:
+	"""
+	Deletes the account
+	"""
 	print("Are you sure you want to delete your account?")
 	username = input("Enter username to confirm: ")
 	usrn_utf8 = username.encode('utf-8')
@@ -272,7 +287,10 @@ def delete_account(s: socket.socket) -> bool:
 	print(retstr.decode('ascii'))
 	return ret == CLIENT_MESSAGE_APPROVED
 
-def print_select_users(s: socket.socket, username: str) -> bool: # done
+def print_select_users(s: socket.socket, username: str) -> bool: 
+	"""
+	Prints a list of users that match a regex
+	"""
 	rstr = input("Enter Python regex (if blank, will select all): ")
 	if (len(rstr) > 50): rstr = rstr[:50]
 	ln = len(rstr.encode("utf-8")).to_bytes(1, byteorder="little")
@@ -287,6 +305,9 @@ def print_select_users(s: socket.socket, username: str) -> bool: # done
 	print("\n  ".join(user_list))
 
 def Main():
+	"""
+	Main function, to be called when the program is run
+	"""
 	s = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
 
 	s.connect((HOST, PORT))

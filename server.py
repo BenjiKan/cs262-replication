@@ -38,6 +38,9 @@ message_handler = MessageHandler()
 
 # Creates a user, taking inputs from socket c
 def create_user(c: socket.socket) -> bool:
+    """
+    Creates a new user with the given username and password.
+    """
     usr_len_bytes = c.recv(1024)
     usr_len = -1
     client_send_msg = CLIENT_MESSAGE_APPROVED
@@ -112,6 +115,9 @@ def create_user(c: socket.socket) -> bool:
     return res
 
 def att_login(c: socket.socket) -> bool:
+    """
+    Attempts to log in with the given username and password.
+    """
     usr_len_bytes = c.recv(1024)
     usr_len = -1
     client_send_msg = CLIENT_MESSAGE_APPROVED
@@ -172,6 +178,9 @@ def att_login(c: socket.socket) -> bool:
     return (res == 0), username
 
 def attempt_deliver_messages(target: str):
+    """
+    Attempts to deliver messages to the given target.
+    """
     # return
     if not account_store.is_online[target]:
         return False
@@ -201,11 +210,17 @@ def attempt_deliver_messages(target: str):
             
         
 def pack_send_info(msg: str):
+    """
+    Packs the given message into a byte string to be sent to the client.
+    """
     return CLIENT_MESSAGE_SENDING_INFO +\
            len(msg.encode('ascii')).to_bytes(1, byteorder="little") +\
            msg.encode('ascii')
 
 def user_send_msg(c: socket.socket, sender: str) -> bool:
+    """
+    Attempts to send a message from the given sender to the given recipient.
+    """
     debugprint("Start receive message")
     usr_len_bytes = c.recv(1024)
     usr_len = -1
@@ -256,6 +271,9 @@ def user_send_msg(c: socket.socket, sender: str) -> bool:
     
 
 def att_delete_account(c: socket.socket, username: str) -> bool:
+    """
+    Attempts to delete the given account.
+    """
     usr_len_bytes = c.recv(1024)
     usr_len = -1
     if not usr_len_bytes:
@@ -280,7 +298,10 @@ def att_delete_account(c: socket.socket, username: str) -> bool:
     c.send(pack_send_info("Confirmed -- user successfully deleted"))
     return True
     
-def list_all_users(c: socket.socket): # done
+def list_all_users(c: socket.socket):
+    """
+    Lists all users in the server.
+    """
     sz = c.recv(1, socket.MSG_PEEK)
     if not sz:
         debugprint("No data received -- list all users")
@@ -313,6 +334,9 @@ def list_all_users(c: socket.socket): # done
                usr)
 
 def handle_user(c, addr): # thread for user
+    """
+    Handles a user's connection.
+    """
     print(f"User connected at {addr}")
 
     # send that the user is connected
@@ -370,6 +394,8 @@ def handle_user(c, addr): # thread for user
     return
 
 def Main():
+    """
+    Main function to be called when the program is run."""
     # host and port defined in constants
 
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

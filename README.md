@@ -1,6 +1,6 @@
 # CS 262 Design Exercise 1: Wire Protocols
 
-Part 1 (wire protocol) is implemented in the parent directory; part 2 is implemented in the grpc-chatroom sub-directory.
+Part 1 (wire protocol) is implemented in the parent directory; part 2 is implemented in the grpc-chatroom sub-directory. We have removed unit tests from this directory.
 
 # Part 1: Wire-Protocol Based Chat App
 This is an implementation of a client/server chat application with our own wire protocol.
