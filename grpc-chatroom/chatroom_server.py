@@ -29,8 +29,8 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
         self.user_passwords[username] = password
         self.messages[username] = []
         self.user_is_online[username] = False
-        print(self.user_passwords.keys())
         self.lock.release()
+        print("Users: ", self.user_passwords.keys())
         return chatroom_pb2.requestReply(status=1, message="User created successfully")
 
     def Login(self, request, context):
@@ -49,6 +49,7 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
             self.lock.acquire()
             self.user_is_online[username] = True
             self.lock.release()
+            print(username + "logged in")
             return chatroom_pb2.requestReply(status=1, message="Login successful")
 
     def Logout(self, request, context):
@@ -64,19 +65,20 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
             self.lock.acquire()
             self.user_is_online[username] = False
             self.lock.release()
+            print(username + "logged out")
             return chatroom_pb2.requestReply(status=1, message="Logout successful")
 
     def ListUsers(self, request, context):
         """
-        Lists all users.
+        Lists all users matching prefix provided, or lists all users.
         """
         if request.partialusername == "":
-            print("Returning all users...")
+            print("Returning all users")
             return chatroom_pb2.requestReply(status=1, message=" ".join(self.user_passwords.keys()))
         else:
             partial = re.compile(request.partialusername)
             matching_users = []
-            print("Matching users...")
+            print("Returning user(s) starting with " + request.partialusername)
             for username in self.user_passwords.keys():
                 if partial.match(username):
                     matching_users.append(username)
@@ -99,8 +101,9 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
             del self.user_passwords[username]
             del self.messages[username]
             del self.user_is_online[username]
-            print(self.user_passwords.keys())
             self.lock.release()
+            print("Deleted user " + username + " successfully")
+            print("Users: ", self.user_passwords.keys())
             return chatroom_pb2.requestReply(status=1, message="User deleted successfully")
 
     def SendMessage(self, request, context):
@@ -117,6 +120,7 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
             self.lock.acquire()
             self.messages[receiverusername].append(message)
             self.lock.release()    
+            print("Queuing message for user %s: \"%s\"" % (receiverusername, message))
             return chatroom_pb2.requestReply(status=1, message="User %s is offline, message queued" % (receiverusername))
         # if user is online, send message
         else:
@@ -138,10 +142,11 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
             while self.user_is_online[username]:
                 while len(self.messages[username]) > 0: # if pending messages
                     message = self.messages[username].pop(0)
-                    print("Sending/queuing message to user %s: \"%s\"" % (username, message))
+                    print("Sending message to user %s: \"%s\"" % (username, message))
                     yield chatroom_pb2.Message(senderusername="", receiverusername=username, message=message)
                 time.sleep(1)
-        except: # catch errors after an account is deleted
+        except: 
+            # catch errors immediately after an account is deleted
             print("no stream")
     
     

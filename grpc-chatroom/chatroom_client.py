@@ -10,7 +10,7 @@ import time
 from inputimeout import inputimeout
 import sys
 
-TIMEOUT = 30 # seconds before auto-log out
+TIMEOUT = 60 # seconds before auto-log out
 
 def CreateUser(stub):
     """
@@ -129,20 +129,32 @@ def run():
                 print("\nYou are not logged in.")
             else:
                 print("\nYou are logged in as " + logged_in)
-            # request = input("Enter a command: ")
+
+            # Get user input
             try:
-                request = inputimeout(prompt="Enter a command: ", timeout=TIMEOUT) # automatic logout after 30 seconds
+                request = inputimeout(prompt="Enter a command (or \"help\"): ", timeout=TIMEOUT) 
             except Exception:
+                 # If no user input for TIMEOUT seconds, log out and prompt again
                 if logged_in!=None:
                     print("Timed out, logging out...")
                     logged_in = Logout(stub, status=logged_in)
                 continue
 
             # Menu of possible commands
-
             if request == "quit":
                 sys.exit(0)
                 break
+            elif request == "help":
+                print("_________Commands___________")
+                print("help: print this menu")
+                print("create: create a new user")
+                print("login: log in to an existing user")
+                print("logout: log out of the current user")
+                print("list: list all users")
+                print("delete: delete the current user")
+                print("send: send a message to another user")
+                print("check: check for incoming messages")
+                print("quit: quit the program")
             elif request == "create":
                 CreateUser(stub)
             elif request == "login":
@@ -155,7 +167,8 @@ def run():
                 logged_in = DeleteUser(stub, status=logged_in)
             elif request == "send":
                 SendMessage(stub, status=logged_in)
-            elif request == "check": # mostly obsolete, this is done in the background
+            elif request == "check": 
+                # can be private function, as this is done in the background. some users feel the need to manually refresh though
                 CheckMessages(stub, status=logged_in, listening=stub.IncomingStream(chatroom_pb2.User(username=logged_in)))
             else:
                 print("Invalid command, try again.")

@@ -83,9 +83,9 @@ To exit the server or any particular client, use `Ctrl-C`. Our implementation as
 The server does not take any input; it will occassionally print output logs for reference. All commands take place in the client; one can simply follow the prompts after starting it. The list of commands is as follows:
 
 ```
-quit
+help
 ```
-Quit the program.
+Prints help menu.
 
 ```
 create
@@ -121,6 +121,10 @@ Send message to another user, via server.
 check
 ```
 Check for messages; automatically called and running in background once logged in.
+```
+quit
+```
+Quit the program.
 
 
 ## Design Journal
@@ -130,7 +134,7 @@ Beginning with account creation, we do not require a confirmation of password; s
 
 Upon login, the client immediately updates its own logged_in status, and the server also keeps track of the logged in users. Additionally, the client begins a response stream to listen for messages that may be queued by the server or might be sent in the future on a separate thread.
 
-The logout feature updates the status on both client and server side via the stub, which alters how messages are sent and received. In addition to manual log out, we also have a timeout condition, where if a command is not entered in 30 seconds an account is automatically logged out.
+The logout feature updates the status on both client and server side via the stub, which alters how messages are sent and received. In addition to manual log out, we also have a timeout condition, where if a command is not entered in 60 seconds an account is automatically logged out.
 
 Deleting a user requires one to be logged in; this prevents the case that undelievered messages have to be dealt with when an account is deleted. We do request a confirmatin on the client side for deletion, since this is a much more permanent action.
 
