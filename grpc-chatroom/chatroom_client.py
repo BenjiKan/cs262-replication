@@ -119,7 +119,19 @@ def CheckMessages(stub, status, listening):
 
     
 def run():
-    with grpc.insecure_channel('localhost:50054') as channel:
+    """
+    Main function to run the client.
+    """
+
+    # Connect to server
+    # input host
+    host = input("Enter the host address (or ENTER for 'localhost'): ")
+    if host=="":
+        host = "localhost"
+    
+    port = 50054
+    print(f"Connecting to server at {host}:{port}...")
+    with grpc.insecure_channel(f"{host}:{port}") as channel:
         stub = chatroom_pb2_grpc.ChatRoomStub(channel)
         logged_in = None # username if logged in
 

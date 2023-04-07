@@ -9,6 +9,8 @@ import time
 import threading
 import re
 
+import socket
+
 class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
     user_passwords = {} # list of users in {username: password} form
     messages = {} # list of pending messages in {username: [messages]} form
@@ -49,7 +51,7 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
             self.lock.acquire()
             self.user_is_online[username] = True
             self.lock.release()
-            print(username + "logged in")
+            print(username + " logged in")
             return chatroom_pb2.requestReply(status=1, message="Login successful")
 
     def Logout(self, request, context):
@@ -65,7 +67,7 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
             self.lock.acquire()
             self.user_is_online[username] = False
             self.lock.release()
-            print(username + "logged out")
+            print(username + " logged out")
             return chatroom_pb2.requestReply(status=1, message="Logout successful")
 
     def ListUsers(self, request, context):
@@ -154,6 +156,10 @@ def serve():
     """
     Starts the server.
     """
+    print("Starting server...")
+    print("Host:", socket.gethostbyname(socket.gethostname()))
+    print("Copy the above in the client to connect to the server.")
+
     port = '50054'
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     chatroom_pb2_grpc.add_ChatRoomServicer_to_server(ChatRoom(), server)
