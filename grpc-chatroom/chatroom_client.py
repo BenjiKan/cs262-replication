@@ -130,7 +130,10 @@ def run():
         host = "localhost"
     
     port = 50054
+
     print(f"Connecting to server at {host}:{port}...")
+    
+    # Begin main loop of connection
     with grpc.insecure_channel(f"{host}:{port}") as channel:
         stub = chatroom_pb2_grpc.ChatRoomStub(channel)
         logged_in = None # username if logged in

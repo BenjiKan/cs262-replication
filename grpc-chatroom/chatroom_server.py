@@ -11,6 +11,8 @@ import re
 
 import socket
 
+import os
+
 class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
     user_passwords = {} # list of users in {username: password} form
     messages = {} # list of pending messages in {username: [messages]} form
@@ -33,6 +35,7 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
         self.user_is_online[username] = False
         self.lock.release()
         print("Users: ", self.user_passwords.keys())
+        print(self.port)
         return chatroom_pb2.requestReply(status=1, message="User created successfully")
 
     def Login(self, request, context):
@@ -150,12 +153,39 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
         except: 
             # catch errors immediately after an account is deleted
             print("no stream")
-    
-    
+
+    def log(host, port, op):
+        """
+        Updates the log file with the current state of the server.
+        """
+        if not os.path.exists('logs'):
+            os.makedirs('logs')
+
+        # maybe save list of user/passwords database separately from logs of actions
+
+        with open(f'logs/{host}_{port}.out', 'w') as f:
+            # operations for log in, log out, send message, list users, delete user
+
+
+            if op == "user":
+                f.write("Users: " + str(server.user_passwords.keys()) + "")
+
+            f.write("Users: " + str(server.user_passwords.keys()) + "")
+
+            f.close()
+
+        # eventually use this log function in each of the server functions
+
+
 def serve():
     """
     Starts the server.
     """
+
+    # TODO: start up 3 parallel server processes on different ports, and have the client connect to one of them
+    # mutually connect the 3 servers so that they can all send messages to each other
+ 
+
     print("Starting server...")
     print("Host:", socket.gethostbyname(socket.gethostname()))
     print("Copy the above in the client to connect to the server.")
