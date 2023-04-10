@@ -16,6 +16,8 @@ import constants
 import signal
 import sys
 
+import pickle
+
 #############
 ##### Print which process is printing too
 #############
@@ -27,10 +29,13 @@ IDNT = ""
 #### CODE FOR GRPC CHATROOM SERVER ####
 #######################################
 class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
-    user_passwords = {} # list of users in {username: password} form
-    messages = {} # list of pending messages in {username: [messages]} form
-    user_is_online = {} # list of users with boolean flag for online status {username: True/False}
-    lock = threading.Lock() # lock for messages
+    def __init__(self, host, port, user_passwords={}, messages={}, user_is_online={}):
+        self.host = host
+        self.port = port
+        self.user_passwords = user_passwords # list of users in {username: password} form
+        self.messages = messages # list of pending messages in {username: [messages]} form
+        self.user_is_online = user_is_online # list of users with boolean flag for online status {username: True/False}
+        self.lock = threading.Lock() # lock for messages
 
     def CreateUser(self, request, context):
         """
@@ -49,6 +54,7 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
         self.lock.release()
         print(f"{IDNT}[{my_pid}] " + "Users: ", self.user_passwords.keys())
         # print(self.port) <<< MM: This won't work. Will delete and refactor.
+        self.pickle_dump()
         return chatroom_pb2.requestReply(status=1, message=f"User {username} created successfully")
 
     def Login(self, request, context):
@@ -68,6 +74,7 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
             self.user_is_online[username] = True
             self.lock.release()
             print(f"{IDNT}[{my_pid}] " + username + " logged in")
+            self.pickle_dump()
             return chatroom_pb2.requestReply(status=1, message=f"User {username} login successful")
 
     def Logout(self, request, context):
@@ -84,6 +91,7 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
             self.user_is_online[username] = False
             self.lock.release()
             print(f"{IDNT}[{my_pid}] " + username + " logged out")
+            self.pickle_dump()
             return chatroom_pb2.requestReply(status=1, message=f"User {username} logged out successfully")
 
     def ListUsers(self, request, context):
@@ -122,6 +130,7 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
             self.lock.release()
             print(f"{IDNT}[{my_pid}] " + "Deleted user " + username + " successfully")
             print(f"{IDNT}[{my_pid}] " + "Users: ", self.user_passwords.keys())
+            self.pickle_dump()
             return chatroom_pb2.requestReply(status=1, message=f"User {username} deleted successfully")
 
     def SendMessage(self, request, context):
@@ -139,12 +148,14 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
             self.messages[receiverusername].append(message)
             self.lock.release()    
             print(f"{IDNT}[{my_pid}] " + f"Queuing message for user {receiverusername}: \"{message}\"")
+            self.pickle_dump()
             return chatroom_pb2.requestReply(status=1, message=f"User {receiverusername} is offline, message queued")
         # if user is online, send message
         else:
             self.lock.acquire()
             self.messages[receiverusername].append(message)
             self.lock.release()
+            self.pickle_dump()
             return chatroom_pb2.requestReply(status=1, message=f"User {receiverusername} is online, message sent successfully")
 
     def IncomingStream(self, request, context):
@@ -161,11 +172,23 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
                 while len(self.messages[username]) > 0: # if pending messages
                     message = self.messages[username].pop(0)
                     print(f"{IDNT}[{my_pid}] " + "Sending message to user %s: \"%s\"" % (username, message))
+                    self.pickle_dump()
                     yield chatroom_pb2.Message(senderusername="", receiverusername=username, message=message)
                 time.sleep(1)
         except: 
             # catch errors immediately after an account is deleted
             print(f"{IDNT}[{my_pid}] " + "no stream")
+    
+    def pickle_dump(self):
+        """
+        Pickles the serverstate variables.
+        """
+        with open(f'{self.host}_{self.port}_users.pickle', 'wb') as f:
+            pickle.dump(self.user_passwords, f)
+        with open(f'{self.host}_{self.port}_messages.pickle', 'wb') as f:
+            pickle.dump(self.messages, f)
+        with open(f'{self.host}_{self.port}_online.pickle', 'wb') as f:
+            pickle.dump(self.user_is_online, f)
 
     def log(host, port, op):
         """
@@ -201,7 +224,17 @@ class ServerObject():
     
     def start_server(self):
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-        chatroom_pb2_grpc.add_ChatRoomServicer_to_server(ChatRoom(), server)
+        if os.path.exists(f'{self.host}_{self.port}_users.pickle'):
+            with open(f'{self.host}_{self.port}_users.pickle', 'rb') as f:
+                self.user_passwords = pickle.load(f)
+            with open(f'{self.host}_{self.port}_messages.pickle', 'rb') as f:
+                self.messages = pickle.load(f)
+            with open(f'{self.host}_{self.port}_online.pickle', 'rb') as f:
+                self.user_is_online = pickle.load(f)
+            
+            chatroom_pb2_grpc.add_ChatRoomServicer_to_server(ChatRoom(self.host, self.port, self.user_passwords, self.messages, self.user_is_online), server)
+        else:
+            chatroom_pb2_grpc.add_ChatRoomServicer_to_server(ChatRoom(self.host, self.port), server)
         server.add_insecure_port('[::]:' + self.port)
         server.start()
         print(f"{IDNT}[{my_pid}] " + "Server started on port " + self.port)
