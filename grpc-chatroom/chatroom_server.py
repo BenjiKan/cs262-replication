@@ -206,10 +206,10 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
                     self.lock.release()
                     print(f"{IDNT}[{my_pid}] " + "Sending message to user %s: \"%s\"" % (username, message))
                     self.log_lock.acquire()
-                    new_cmd = ("release_message", username)
+                    new_cmd = ("release_message", MessageToJson(username))
                     self.internal_log.append(new_cmd)
                     self.log_lock.release()
-                    self.pickle_dump()
+                    # self.pickle_dump()
                     yield chatroom_pb2.Message(senderusername="", receiverusername=username, message=message)
                 time.sleep(0.1)
             logging.info(f"Stream closed for user {request.username}")
@@ -243,13 +243,22 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
             print(f"{IDNT}[{my_pid}] getNewChanges exception {exn}")
     
     def srv_CheckLeader(self, request, context):
+        """
+        Used by backup to check if leader is still alive
+        """
         print(f"[{my_pid}] CHECKLEADER CALLED, RETURNING", self.is_leader, self.leader_port)
         return chatroom_pb2.requestReply(status = self.is_leader, message=str(self.is_leader) + " | " + str(self.leader_port))
 
     def srv_ElectLeader(self, request, context):
+        """
+        Used by backup to elect a new leader
+        """
         return super().srv_ElectLeader(request, context)
 
     def release_msg(self, username):
+        """
+        Releases a message from the queue for the given user.
+        """
         self.lock.acquire()
         message = self.messages[username].pop(0)
         self.lock.release()
@@ -273,8 +282,6 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
             f.write("Users: " + str(server.user_passwords.keys()) + "")
 
             f.close()
-
-        # eventually use this log function in each of the server functions
 
 
 ################################
@@ -324,8 +331,8 @@ class ServerObject():
             request = Parse(params, chatroom_pb2.Message())
             self.main_stub.SendMessage(request)
         elif command_type == "release_message":
-            username = params
-            self.main_stub.release_msg(username)
+            request = Parse(params, chatroom_pb2.User())
+            self.main_stub.IncomingStream(request)
         else:
             print("Bad command", command_type)
     
@@ -389,101 +396,12 @@ def serve():
     print(f"\033[92m[{my_pid}]\033[0m " + "Copy the above in the client to connect to the server.")
 
     HOST = socket.gethostbyname(socket.gethostname())
-    server_obj = ServerObject(HOST, str(constants.SERVER_PORTS[args.server_num]), str(constants.SERVER_PORTS[0]), args.server_num == 0)
+    server_obj = ServerObject(HOST, port=str(constants.SERVER_PORTS[args.server_num]), leader_port=str(constants.SERVER_PORTS[0]), is_leader=args.server_num == 0)
     # server_obj.server.leader_port = str(constants.SERVER_PORTS[0])
     # server_obj.server.is_leader = args.server_num == 0
     # print(server_obj.server.leader_port, server_obj.server.is_leader)
     server_obj.start_server()
 
-
-def serve_old():
-    """
-    Starts the server.
-    """
-
-    # TODO: start up 3 parallel server processes on different ports, and have the client connect to one of them
-    # mutually connect the 3 servers so that they can all send messages to each other
- 
-    global IDNT, my_pid
-
-    print(f"{IDNT}[{my_pid}] " + "Starting server...")
-    print(f"{IDNT}[{my_pid}] " + "Host:", socket.gethostbyname(socket.gethostname()))
-    print(f"{IDNT}[{my_pid}] " + "Copy the above in the client to connect to the server.")
-
-    HOST = socket.gethostbyname(socket.gethostname())
-    N_SERVERS = 3
-    servers = [ServerObject(HOST, str(constants.SERVER_PORTS[i])) for i in range(N_SERVERS)]
-
-    child_pids = [0 for i in range(N_SERVERS)]
-    for i in range(N_SERVERS):
-        n = os.fork()
-        if n == 0:
-            if (os.getpid() != my_pid):
-                IDNT = "    "
-            my_pid = os.getpid()
-            ########################
-            ### Construct inter-server communications, then start client server ###
-            def signal_exit_handler(*args):
-                print(f"{IDNT}[{my_pid}] " + f"Exiting on pid {os.getpid()}")
-                #### Do cleanups here
-                sys.exit(0)
-            signal.signal(signal.SIGTERM, signal_exit_handler)
-
-            # s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            # s.bind((HOST, constants.INTERNAL_PORTS[i]))
-            # s.listen(5)
-            # time.sleep(0.5)
-            # other_sockets = [None for i in range(N_SERVERS)]
-            # for j in range(N_SERVERS):
-            #     if j == i: continue
-                
-            #         # Do stu
-
-
-            # Initialize first server as leader
-            servers[i].server.leader_port = str(constants.SERVER_PORTS[0])
-            servers[i].server.is_leader = i == 0
-            servers[i].start_server()
-
-            print(f"{IDNT}[{my_pid}] " + f"Server {i} started")
-
-            # time.sleep(5)
-            # servers[i].run_loop()
-        else:
-            child_pids[i] = n
-            print(f"{IDNT}[{my_pid}] " + f"Parent: server idx {i} can, pid {child_pids[i]}")
-    
-    num_killed = 0
-    server_alive = [True for i in range(N_SERVERS)]
-    while num_killed < N_SERVERS - 1:
-        print(f"{IDNT}[{my_pid}] " + "Press Ctrl-D to exit a thread")
-        try:
-            input()
-        except EOFError:
-            print(f"RECEIVED AT PID {os.getpid()}")
-            prompt_choices = map(lambda x: str(x[0]),
-                                 filter(lambda x: x[1], enumerate(server_alive)))
-            idx = input(f"[{my_pid}] Which server to kill? (Alive: {'/'.join(prompt_choices)})")
-            idx = int(idx.strip())
-            try:
-                if not server_alive[idx]: continue
-                server_alive[idx] = False
-                os.kill(child_pids[idx], signal.SIGTERM)
-                num_killed += 1
-                print(f"{IDNT}[{my_pid}] {num_killed} fault(s) reached!")
-            except IndexError:
-                continue
-
-
-    # port = '50054'
-    # server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    # chatroom_pb2_grpc.add_ChatRoomServicer_to_server(ChatRoom(), server)
-    # server.add_insecure_port('[::]:' + port)
-    # server.start()
-    # print("Server started on port " + port)
-    # server.wait_for_termination()
-    while True:
-        pass
 
 if __name__ == '__main__':
     logging.basicConfig()
