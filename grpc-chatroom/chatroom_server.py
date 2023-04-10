@@ -19,6 +19,8 @@ import sys
 import json
 from google.protobuf.json_format import MessageToJson, Parse
 
+import pickle
+
 #############
 ##### Print which process is printing too
 #############
@@ -69,6 +71,7 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
         self.lock.release()
         print(f"{IDNT}[{my_pid}] " + "Users: ", self.user_passwords.keys())
         # print(self.port) <<< MM: This won't work. Will delete and refactor.
+        self.pickle_dump()
         return chatroom_pb2.requestReply(status=1, message=f"User {username} created successfully")
 
     def Login(self, request, context):
@@ -82,17 +85,18 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
         username = request.username
         password = request.password
         if username not in self.user_passwords:
-            return chatroom_pb2.requestReply(status=0, message="Username does not exist")
+            return chatroom_pb2.requestReply(status=0, message=f"User {username} does not exist")
         elif self.user_passwords[username] != password:
-            return chatroom_pb2.requestReply(status=0, message="Incorrect password")
+            return chatroom_pb2.requestReply(status=0, message=f"Incorrect password for user {username}")
         elif self.user_is_online[username]:
-            return chatroom_pb2.requestReply(status=0, message="User is already online")
+            return chatroom_pb2.requestReply(status=0, message=f"User {username} is already online")
         else:
             self.lock.acquire()
             self.user_is_online[username] = True
             self.lock.release()
             print(f"{IDNT}[{my_pid}] " + username + " logged in")
-            return chatroom_pb2.requestReply(status=1, message="Login successful")
+            self.pickle_dump()
+            return chatroom_pb2.requestReply(status=1, message=f"User {username} login successful")
 
     def Logout(self, request, context):
         """
@@ -104,15 +108,16 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
         self.log_lock.release()
         username = request.username
         if username not in self.user_passwords:
-            return chatroom_pb2.requestReply(status=0, message="Username does not exist")
+            return chatroom_pb2.requestReply(status=0, message=f"User {username} does not exist")
         elif not self.user_is_online[username]:
-            return chatroom_pb2.requestReply(status=0, message="User is already offline")
+            return chatroom_pb2.requestReply(status=0, message=f"User {username} is already offline")
         else:
             self.lock.acquire()
             self.user_is_online[username] = False
             self.lock.release()
             print(f"{IDNT}[{my_pid}] " + username + " logged out")
-            return chatroom_pb2.requestReply(status=1, message="Logout successful")
+            self.pickle_dump()
+            return chatroom_pb2.requestReply(status=1, message=f"User {username} logged out successfully")
 
     def ListUsers(self, request, context):
         """
@@ -133,7 +138,7 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
                 if partial.match(username):
                     matching_users.append(username)
             if len(matching_users) == 0:
-                return chatroom_pb2.requestReply(status=0, message="No matching users")
+                return chatroom_pb2.requestReply(status=0, message="No matching users found")
             else:
                 return chatroom_pb2.requestReply(status=1, message=" ".join(matching_users))
         
@@ -147,9 +152,9 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
         self.log_lock.release()
         username = request.username
         if username not in self.user_passwords:
-            return chatroom_pb2.requestReply(status=0, message="Username does not exist")
+            return chatroom_pb2.requestReply(status=0, message=f"User {username} does not exist")
         elif not self.user_is_online[username]:
-            return chatroom_pb2.requestReply(status=0, message="User is already offline")
+            return chatroom_pb2.requestReply(status=0, message=f"User {username} is offline, cannot delete")
         else:
             self.lock.acquire()
             del self.user_passwords[username]
@@ -158,7 +163,8 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
             self.lock.release()
             print(f"{IDNT}[{my_pid}] " + "Deleted user " + username + " successfully")
             print(f"{IDNT}[{my_pid}] " + "Users: ", self.user_passwords.keys())
-            return chatroom_pb2.requestReply(status=1, message="User deleted successfully")
+            self.pickle_dump()
+            return chatroom_pb2.requestReply(status=1, message=f"User {username} deleted successfully")
 
     def SendMessage(self, request, context):
         """
@@ -172,20 +178,22 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
         receiverusername = request.receiverusername
         message = "\033[92m" + senderusername + "\033[0m" + " says: " + request.message # embed sender username in message
         if receiverusername not in self.user_passwords:
-            return chatroom_pb2.requestReply(status=0, message="Username does not exist")
+            return chatroom_pb2.requestReply(status=0, message=f"User {receiverusername} does not exist")
         # if user is offline, queue message
         if not self.user_is_online[receiverusername]:
             self.lock.acquire()
             self.messages[receiverusername].append(message)
             self.lock.release()    
-            print(f"{IDNT}[{my_pid}] " + "Queuing message for user %s: \"%s\"" % (receiverusername, message))
-            return chatroom_pb2.requestReply(status=1, message="User %s is offline, message queued" % (receiverusername))
+            print(f"{IDNT}[{my_pid}] " + f"Queuing message for user {receiverusername}: \"{message}\"")
+            self.pickle_dump()
+            return chatroom_pb2.requestReply(status=1, message=f"User {receiverusername} is offline, message queued")
         # if user is online, send message
         else:
             self.lock.acquire()
             self.messages[receiverusername].append(message)
             self.lock.release()
-            return chatroom_pb2.requestReply(status=1, message="User %s is online, message sent" % (receiverusername))
+            self.pickle_dump()
+            return chatroom_pb2.requestReply(status=1, message=f"User {receiverusername} is online, message sent successfully")
 
     def IncomingStream(self, request, context):
         """
@@ -207,13 +215,25 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
                     new_cmd = ("release_message", username)
                     self.internal_log.append(new_cmd)
                     self.log_lock.release()
+                    self.pickle_dump()
                     yield chatroom_pb2.Message(senderusername="", receiverusername=username, message=message)
                 time.sleep(0.1)
             logging.info(f"Stream closed for user {request.username}")
         except: 
             # catch errors immediately after an account is deleted
             print(f"{IDNT}[{my_pid}] " + "no stream")
-    
+        
+    def pickle_dump(self):
+        """
+        Pickles the serverstate variables.
+        """
+        with open(f'{self.host}_{self.port}_users.pickle', 'wb') as f:
+            pickle.dump(self.user_passwords, f)
+        with open(f'{self.host}_{self.port}_messages.pickle', 'wb') as f:
+            pickle.dump(self.messages, f)
+        with open(f'{self.host}_{self.port}_online.pickle', 'wb') as f:
+            pickle.dump(self.user_is_online, f)
+
     def srv_GetNewChanges(self, request, context):
         """
         Used by backup to request new changes from leader. Each backup opens one

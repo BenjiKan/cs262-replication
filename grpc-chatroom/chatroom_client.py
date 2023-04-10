@@ -33,7 +33,7 @@ def CreateUser(stub, username=None, password=None, test=False):
     if test:
         return response.status, response.message
 
-def Login(stub, status, username=None, password=None):
+def Login(stub, status, username=None, password=None, test=False):
     """
     Logs in the user with the given username and password.
     """
@@ -48,13 +48,27 @@ def Login(stub, status, username=None, password=None):
     response = stub.Login(chatroom_pb2.User(username=username, password=password))
     print(response.message)
     if response.status==0:
+        if test:
+            return response.status, response.message
+        
         return None
     else:
         logged_in = username
 
         # Start a thread to check for messages
+
+        if test=="relogin": # only test logging in for queued message 
+            listening = stub.IncomingStream(chatroom_pb2.User(username=logged_in))
+            reply = CheckMessages(stub, logged_in, listening, test=True)
+            return reply
+        
+        # normal listening thread
         listening = stub.IncomingStream(chatroom_pb2.User(username=logged_in))
         threading.Thread(target=CheckMessages, daemon=True, args=(stub, logged_in, listening)).start()
+
+        if test:
+            print(response.status, response.message, logged_in)
+            return response.status, response.message, logged_in
 
         return logged_in
 
@@ -65,7 +79,7 @@ def recreate_thread(stub):
     listening = stub.IncomingStream(chatroom_pb2.User(username=global_logged_in))
     threading.Thread(target=CheckMessages, daemon=True, args=(stub, global_logged_in, listening)).start()
 
-def Logout(stub, status):
+def Logout(stub, status, test=False):
     """
     Logs out the user with the given username.
     """
@@ -78,11 +92,24 @@ def Logout(stub, status):
         recreate_thread(stub)
     response = stub.Logout(chatroom_pb2.User(username=status))
     print(response.message)
-    if response.status==1:
+
+    if response.status==0:
+        if test:
+            print(response.status, response.message)
+            return response.status, response.message
+        
+        return None
+    
+    elif response.status==1:
         logged_in = None
+
+        if test:
+            print(response.status, response.message, logged_in)
+            return response.status, response.message, logged_in
+
         return logged_in
 
-def ListUsers(stub, partial=None):
+def ListUsers(stub, partial=None, test=False):
     """
     Lists all users in the server. No need for login.
     """
@@ -98,7 +125,11 @@ def ListUsers(stub, partial=None):
         response = stub.ListUsers(chatroom_pb2.UserList(partialusername=partial))
     print(response.message)
 
-def DeleteUser(stub, status, cnfm_username=None):
+    if test:
+        print(response.status, response.message)
+        return response.status, response.message
+
+def DeleteUser(stub, status, cnfm_username=None, test=False):
     """
     Deletes the user with the given username.
     """
@@ -118,11 +149,24 @@ def DeleteUser(stub, status, cnfm_username=None):
     else:
         response = stub.DeleteUser(chatroom_pb2.User(username=status))
         print(response.message)
-        if response.status==1:
+        
+        if response.status==0:
+            if test:
+                print(response.status, response.message)
+                return response.status, response.message
+            
+            return None
+
+        elif response.status==1:
             logged_in = None
+
+            if test:
+                print(response.status, response.message, logged_in)
+                return response.status, response.message, logged_in
+
             return logged_in
 
-def SendMessage(stub, status, receiverusername=None):
+def SendMessage(stub, status, receiverusername=None, message=None, test=False):
     """
     Sends a message from the logged in user to the given user.
     """
@@ -138,11 +182,18 @@ def SendMessage(stub, status, receiverusername=None):
     if receiverusername == status:
         print("You cannot send messages to yourself.")
         return status
-    message = input("Enter a message: ")
+    
+    # for testing purposes, can pass in message. Otherwise, user enters here
+    if message is None: 
+        message = input("Enter a message: ")
     response = stub.SendMessage(chatroom_pb2.Message(senderusername=status, receiverusername=receiverusername, message=message))
     print(response.message)
 
-def CheckMessages(stub, status, listening):
+    if test:
+        print(response.status, response.message)
+        return response.status, response.message
+
+def CheckMessages(stub, status, listening, test=False):
     """
     Checks for messages from the logged in user. Called by thread in background.
     """
@@ -152,8 +203,12 @@ def CheckMessages(stub, status, listening):
     try:
         for message in listening: 
             print("\n"+message.message)
+
+            if test:
+                print("reply:", message.message)
+                return message.message
     except: # if account is deleted, no error.
-        print("no listening found. break")
+        print("no listening found. break message checking loop.")
     return
 
 
