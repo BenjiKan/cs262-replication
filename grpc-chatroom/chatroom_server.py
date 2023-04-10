@@ -71,7 +71,6 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
         self.lock.release()
         print(f"{IDNT}[{my_pid}] " + "Users: ", self.user_passwords.keys())
         # print(self.port) <<< MM: This won't work. Will delete and refactor.
-        self.pickle_dump()
         return chatroom_pb2.requestReply(status=1, message=f"User {username} created successfully")
 
     def Login(self, request, context):
@@ -95,7 +94,6 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
             self.user_is_online[username] = True
             self.lock.release()
             print(f"{IDNT}[{my_pid}] " + username + " logged in")
-            self.pickle_dump()
             return chatroom_pb2.requestReply(status=1, message=f"User {username} login successful")
 
     def Logout(self, request, context):
@@ -116,7 +114,6 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
             self.user_is_online[username] = False
             self.lock.release()
             print(f"{IDNT}[{my_pid}] " + username + " logged out")
-            self.pickle_dump()
             return chatroom_pb2.requestReply(status=1, message=f"User {username} logged out successfully")
 
     def ListUsers(self, request, context):
@@ -163,7 +160,6 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
             self.lock.release()
             print(f"{IDNT}[{my_pid}] " + "Deleted user " + username + " successfully")
             print(f"{IDNT}[{my_pid}] " + "Users: ", self.user_passwords.keys())
-            self.pickle_dump()
             return chatroom_pb2.requestReply(status=1, message=f"User {username} deleted successfully")
 
     def SendMessage(self, request, context):
@@ -185,14 +181,12 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
             self.messages[receiverusername].append(message)
             self.lock.release()    
             print(f"{IDNT}[{my_pid}] " + f"Queuing message for user {receiverusername}: \"{message}\"")
-            self.pickle_dump()
             return chatroom_pb2.requestReply(status=1, message=f"User {receiverusername} is offline, message queued")
         # if user is online, send message
         else:
             self.lock.acquire()
             self.messages[receiverusername].append(message)
             self.lock.release()
-            self.pickle_dump()
             return chatroom_pb2.requestReply(status=1, message=f"User {receiverusername} is online, message sent successfully")
 
     def IncomingStream(self, request, context):
