@@ -49,7 +49,7 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
         self.lock.release()
         print(f"{IDNT}[{my_pid}] " + "Users: ", self.user_passwords.keys())
         # print(self.port) <<< MM: This won't work. Will delete and refactor.
-        return chatroom_pb2.requestReply(status=1, message="User created successfully")
+        return chatroom_pb2.requestReply(status=1, message=f"User {username} created successfully")
 
     def Login(self, request, context):
         """

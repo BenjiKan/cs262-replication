@@ -17,7 +17,7 @@ TIMEOUT = 60 # seconds before auto-log out
 # handles the last pending request from the client
 pending_request = {}
 
-def CreateUser(stub, username=None, password=None):
+def CreateUser(stub, username=None, password=None, test=False):
     """
     Creates a new user with the given username and password.
     """
@@ -29,6 +29,9 @@ def CreateUser(stub, username=None, password=None):
     response = stub.CreateUser(chatroom_pb2.User(username=username, password=password))
 
     print(response.message)
+
+    if test:
+        return response.status, response.message
 
 def Login(stub, status, username=None, password=None):
     """
