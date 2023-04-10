@@ -59,14 +59,23 @@ def Login(stub, status, username=None, password=None):
         return logged_in
 
 
+def recreate_thread(stub):
+    global global_logged_in
+    # Start a thread to check for messages
+    listening = stub.IncomingStream(chatroom_pb2.User(username=global_logged_in))
+    threading.Thread(target=CheckMessages, daemon=True, args=(stub, global_logged_in, listening)).start()
+
 def Logout(stub, status):
     """
     Logs out the user with the given username.
     """
     global pending_request
     if status==None:
-        print("You are not logged in.")
+        print("Currently not logged in.")
         return status
+    global global_logged_in
+    if not global_logged_in is None:
+        recreate_thread(stub)
     response = stub.Logout(chatroom_pb2.User(username=status))
     print(response.message)
     if response.status==1:
@@ -77,6 +86,9 @@ def ListUsers(stub, partial=None):
     """
     Lists all users in the server. No need for login.
     """
+    global global_logged_in
+    if not global_logged_in is None:
+        recreate_thread(stub)
     global pending_request
     if partial is None: partial = input("Enter a partial username (press enter if you want to see all users): ")
     pending_request['partial'] = partial
@@ -95,6 +107,9 @@ def DeleteUser(stub, status, cnfm_username=None):
     if status==None:
         print("You are not logged in.") 
         return status
+    global global_logged_in
+    if not global_logged_in is None:
+        recreate_thread(stub)
     if cnfm_username is None: cnfm_username = input("Type your username if you are sure you want to delete this account: ")
     pending_request["cnfm_username"] = cnfm_username
     if cnfm_username != status:
@@ -115,6 +130,9 @@ def SendMessage(stub, status, receiverusername=None):
     if status==None:
         print("You are not logged in.")
         return status
+    global global_logged_in
+    if not global_logged_in is None:
+        recreate_thread(stub)
     if receiverusername is None: receiverusername = input("Enter the username you want to send to: ")
     pending_request['receiverusername'] = receiverusername
     if receiverusername == status:
@@ -165,6 +183,7 @@ def run():
         print(f"Connecting to server at {host}:{port}...")
         
         # Handle pending request from last failed client request (i.e. server is down, switching)
+        print("Login status:", global_logged_in)
         if len(pending_request) > 0:
             with grpc.insecure_channel(f"{host}:{port}") as channel:
                 cur_channel = channel
@@ -189,7 +208,7 @@ def run():
                         print("list: list all users")
                         print("delete: delete the current user")
                         print("send: send a message to another user")
-                        print("check: check for incoming messages")
+                        # print("check: check for incoming messages")
                         print("quit: quit the program")
                     elif request == "create":
                         print("Retrying create with",
@@ -220,10 +239,10 @@ def run():
                         print("Retrying send with",
                               f"recipient: {pending_request['receiverusername']}" + "...", sep = '\n')
                         SendMessage(stub, status=global_logged_in, receiverusername=pending_request["receiverusername"])
-                    elif request == "check": 
-                        # can be private function, as this is done in the background. some users feel the need to manually refresh though
-                        print("Retrying check...")
-                        CheckMessages(stub, status=global_logged_in, listening=stub.IncomingStream(chatroom_pb2.User(username=global_logged_in)))
+                    # elif request == "check": 
+                    #     # can be private function, as this is done in the background. some users feel the need to manually refresh though
+                    #     print("Retrying check...")
+                    #     CheckMessages(stub, status=global_logged_in, listening=stub.IncomingStream(chatroom_pb2.User(username=global_logged_in)))
                     else:
                         print("Invalid command, try again.")
                 except grpc._channel._InactiveRpcError as inactive_exn:
@@ -240,19 +259,16 @@ def run():
         with grpc.insecure_channel(f"{host}:{port}") as channel:
             cur_channel = channel
             stub = chatroom_pb2_grpc.ChatRoomStub(channel)
-            global_logged_in = None # username if logged in
+            # global_logged_in = None # username if logged in
             cur_channel, cur_stub = channel, stub
 
             try:
-                just_timed_out = False
                 while True:
                     # Print command prompt with username if logged in
-                    if not just_timed_out:
-                        if global_logged_in==None:
-                            print("\nYou are not logged in.")
-                        else:
-                            print("\nYou are logged in as " + global_logged_in)
-                    just_timed_out = False
+                    if global_logged_in==None:
+                        print("\nYou are not logged in.")
+                    else:
+                        print("\nYou are logged in as " + "\033[92m" + global_logged_in + "\033[0m")
                     # Get user input
                     try:
                         request = inputimeout(prompt="Enter a command (or \"help\"): ", timeout=TIMEOUT) 
@@ -262,7 +278,6 @@ def run():
                             print("Timed out, logging out...")
                             pending_request['request'] = "logout"
                             global_logged_in = Logout(stub, status=global_logged_in)
-                        just_timed_out = True
                         continue
                     pending_request['request'] = request
 
@@ -282,7 +297,7 @@ def run():
                         print("list: list all users")
                         print("delete: delete the current user")
                         print("send: send a message to another user")
-                        print("check: check for incoming messages")
+                        # print("check: check for incoming messages")
                         print("quit: quit the program")
                     elif request == "create":
                         CreateUser(stub)
@@ -296,9 +311,9 @@ def run():
                         global_logged_in = DeleteUser(stub, status=global_logged_in)
                     elif request == "send":
                         SendMessage(stub, status=global_logged_in)
-                    elif request == "check": 
-                        # can be private function, as this is done in the background. some users feel the need to manually refresh though
-                        CheckMessages(stub, status=global_logged_in, listening=stub.IncomingStream(chatroom_pb2.User(username=global_logged_in)))
+                    # elif request == "check": 
+                    #     # can be private function, as this is done in the background. some users feel the need to manually refresh though
+                    #     CheckMessages(stub, status=global_logged_in, listening=stub.IncomingStream(chatroom_pb2.User(username=global_logged_in)))
                     else:
                         print("Invalid command, try again.")
             except grpc._channel._InactiveRpcError as inactive_exn:

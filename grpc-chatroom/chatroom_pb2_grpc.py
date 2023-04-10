@@ -54,6 +54,21 @@ class ChatRoomStub(object):
                 request_serializer=chatroom__pb2.Message.SerializeToString,
                 response_deserializer=chatroom__pb2.requestReply.FromString,
                 )
+        self.srv_GetNewChanges = channel.unary_stream(
+                '/chatroom.ChatRoom/srv_GetNewChanges',
+                request_serializer=chatroom__pb2.Empty.SerializeToString,
+                response_deserializer=chatroom__pb2.internalRequest.FromString,
+                )
+        self.srv_CheckLeader = channel.unary_unary(
+                '/chatroom.ChatRoom/srv_CheckLeader',
+                request_serializer=chatroom__pb2.Empty.SerializeToString,
+                response_deserializer=chatroom__pb2.requestReply.FromString,
+                )
+        self.srv_ElectLeader = channel.unary_unary(
+                '/chatroom.ChatRoom/srv_ElectLeader',
+                request_serializer=chatroom__pb2.Empty.SerializeToString,
+                response_deserializer=chatroom__pb2.requestReply.FromString,
+                )
 
 
 class ChatRoomServicer(object):
@@ -107,6 +122,24 @@ class ChatRoomServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def srv_GetNewChanges(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def srv_CheckLeader(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def srv_ElectLeader(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_ChatRoomServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -148,6 +181,21 @@ def add_ChatRoomServicer_to_server(servicer, server):
             'DeliverMessage': grpc.unary_unary_rpc_method_handler(
                     servicer.DeliverMessage,
                     request_deserializer=chatroom__pb2.Message.FromString,
+                    response_serializer=chatroom__pb2.requestReply.SerializeToString,
+            ),
+            'srv_GetNewChanges': grpc.unary_stream_rpc_method_handler(
+                    servicer.srv_GetNewChanges,
+                    request_deserializer=chatroom__pb2.Empty.FromString,
+                    response_serializer=chatroom__pb2.internalRequest.SerializeToString,
+            ),
+            'srv_CheckLeader': grpc.unary_unary_rpc_method_handler(
+                    servicer.srv_CheckLeader,
+                    request_deserializer=chatroom__pb2.Empty.FromString,
+                    response_serializer=chatroom__pb2.requestReply.SerializeToString,
+            ),
+            'srv_ElectLeader': grpc.unary_unary_rpc_method_handler(
+                    servicer.srv_ElectLeader,
+                    request_deserializer=chatroom__pb2.Empty.FromString,
                     response_serializer=chatroom__pb2.requestReply.SerializeToString,
             ),
     }
@@ -292,6 +340,57 @@ class ChatRoom(object):
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/chatroom.ChatRoom/DeliverMessage',
             chatroom__pb2.Message.SerializeToString,
+            chatroom__pb2.requestReply.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def srv_GetNewChanges(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_stream(request, target, '/chatroom.ChatRoom/srv_GetNewChanges',
+            chatroom__pb2.Empty.SerializeToString,
+            chatroom__pb2.internalRequest.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def srv_CheckLeader(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/chatroom.ChatRoom/srv_CheckLeader',
+            chatroom__pb2.Empty.SerializeToString,
+            chatroom__pb2.requestReply.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def srv_ElectLeader(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/chatroom.ChatRoom/srv_ElectLeader',
+            chatroom__pb2.Empty.SerializeToString,
             chatroom__pb2.requestReply.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

@@ -4,6 +4,10 @@ from typing import ClassVar as _ClassVar, Optional as _Optional
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
+class Empty(_message.Message):
+    __slots__ = []
+    def __init__(self) -> None: ...
+
 class Message(_message.Message):
     __slots__ = ["message", "receiverusername", "senderusername"]
     MESSAGE_FIELD_NUMBER: _ClassVar[int]
@@ -27,6 +31,14 @@ class UserList(_message.Message):
     PARTIALUSERNAME_FIELD_NUMBER: _ClassVar[int]
     partialusername: str
     def __init__(self, partialusername: _Optional[str] = ...) -> None: ...
+
+class internalRequest(_message.Message):
+    __slots__ = ["command_type", "params"]
+    COMMAND_TYPE_FIELD_NUMBER: _ClassVar[int]
+    PARAMS_FIELD_NUMBER: _ClassVar[int]
+    command_type: str
+    params: str
+    def __init__(self, command_type: _Optional[str] = ..., params: _Optional[str] = ...) -> None: ...
 
 class requestReply(_message.Message):
     __slots__ = ["message", "status"]

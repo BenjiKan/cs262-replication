@@ -22,6 +22,19 @@ message requestReply {
     string message = 2;
 }
 
+// For server side syncs
+message Empty {
+
+}
+
+message internalRequest {
+    string command_type = 1;
+    string params = 2; // serialized json
+    // string user_state = 3;
+    // string message_state = 4;
+    // string online_state = 5;
+}
+
 service ChatRoom {
     rpc CreateUser (User) returns (requestReply);
     rpc Login (User) returns (requestReply);
@@ -32,6 +45,10 @@ service ChatRoom {
     rpc SendMessage (Message) returns (requestReply);
     rpc IncomingStream(User) returns (stream Message);
     rpc DeliverMessage(Message) returns (requestReply);
+    
+    rpc srv_GetNewChanges (Empty) returns (stream internalRequest);
+    rpc srv_CheckLeader (Empty) returns (requestReply);
+    rpc srv_ElectLeader (Empty) returns (requestReply);
 }
 
 // compile using:
