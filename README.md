@@ -1,13 +1,25 @@
 # CS 262 Design Exercise 3: Replication
-This is an implementation of a client/server chat application with the gRPC framework, satisfying the properties of [Persistence](#p) and 2-[Fault Tolerance](#ft).
+This is an implementation of a client/server chat application with the gRPC framework, satisfying the properties of [Persistence](#persistence) and 2-[Fault Tolerance](#fault-tolerance).
 
-The design journal for the original gRPC-based chat app is in the corresponding section [gRPC-based Chat App](#gRPC) below, including installation and setup instructions.
+The design journal for the original gRPC-based chat app is in the corresponding section [gRPC-based Chat App](#grpc-based-chat-app) below, including installation and setup instructions.
 
 ## Fault Tolerance
-a
+Our fault-tolerant chat system is based on a primary-backup model. Most intuitively, this model involves one primary server and several backup replica servers: clients only communicate with the primary server, which backs up all operations and states on the backup servers. If the primary fails, then one of the backup servers becomes the new primary, which all clients now communicate with. In order to achieve 2-fault tolerance, we need at least three servers; this is hard-coded as a constant in `chatroom_server.py` but the architecture is flexible and this can be adjusted for higher fault tolerance.
+
+If any one or two of the three servers die, the chat system reamins intact. These faults are not observable by clients: due to the hierarchical structure of the primary-backup model, backup failures do not affect anything in the client connection (since they only communicate with the primary server), and if the primary fails, we have a protocol to automatically redirect clients to the new primary. 
+
+Our leader election protocol is simple: we will default to have whichever live server has the lowest port number as the primary. The current implementation spins up parallel server processes from the same machine, each inhabiting a distinct port number, so there will be no conflict (note that this system can easily be generalized to have each server supported on a different machine; for the sake of demonstration we focus on the simple model where everything is hosted on the same machine). Moreover, each server is aware of how many other replicas there are, and their intra-server communication will allow them to recognize which other servers are alive, and thus which is indisputedly the primary. This agreement extends to the clients, so that there is no mistake about which server is the primary. If a client attempts to communicate with a server that is not the primary, it will be blocked and then redirected until the request reaches the true (new) primary. Note that this implementation does not support a single dead replica rejoining; see the section on [Persistence](#persistence) for discussion of how to ensure backend persistence when the entire system goes down.
+
+Despite its intuitive simplicity, the central drawback of the primary-backup model is that all communication must go through the same central server that is serving as the primary, which results in increased latency if it must handle many client connections. For a small number of clients, however, the primary-backup model works well and is easy to debug. As the system scales, it becomes more reasonable to use a paxos-style consensus algorithm among all the equivalent replica servers, allowing for any client to connect to any replica server, which enables better load-balancing.
+
 
 ## Persistence
-a
+Our system is persistent; that is, if the entire server group goes down, it can be brought up without loss of unsent messages. We achieve this property using logs as in the standard process proposed by the Schneider paper on the primary-backup approach. Each replica maintains its own log, so that if a backup becomes a primary, the system continues to function.
+
+In order for the logs to remain consistent, the primary first receives a request from a client, performs the update on its own state database (e.g. creating an account), then forwards that request to the replicas, and finally it updates and flushes the log. In this way, the logs will remain consistent even if the primary goes down at any point. Backups also perform state updates before logging, so that the log will only record committed requests.
+
+Upon system restart, each server will follow its respective log until it reaches the end, thus attaining its previous state before shutdown. Then, the servers communicate to figure out which will be the primary: since the logs are ordered as state machines, whichever has the longest log will have the most recent updates and becomes primary. Ties are broken by the lowest port number, as before. At this point, the server is ready to continue, and clients which log in will be able to receive undelivered messages from their queue. 
+
 
 # gRPC-based Chat App
 This is an implementation of a client/server chat application with the gRPC framework.
