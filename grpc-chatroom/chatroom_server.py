@@ -12,7 +12,11 @@ import re
 import socket
 
 import os
+import constants
 
+#######################################
+#### CODE FOR GRPC CHATROOM SERVER ####
+#######################################
 class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
     user_passwords = {} # list of users in {username: password} form
     messages = {} # list of pending messages in {username: [messages]} form
@@ -35,7 +39,7 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
         self.user_is_online[username] = False
         self.lock.release()
         print("Users: ", self.user_passwords.keys())
-        print(self.port)
+        # print(self.port) <<< MM: This won't work. Will delete and refactor.
         return chatroom_pb2.requestReply(status=1, message="User created successfully")
 
     def Login(self, request, context):
@@ -177,6 +181,18 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
         # eventually use this log function in each of the server functions
 
 
+################################
+#### CODE FOR SERVER OBJECT ####
+################################
+
+class ServerObject():
+    def __init__(self, host, port):
+        self.host = host
+        self.port = port
+
+#############################################
+#### CODE FOR LAUNCHING SERVER INSTANCES ####
+#############################################
 def serve():
     """
     Starts the server.

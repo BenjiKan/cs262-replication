@@ -7,8 +7,11 @@ import chatroom_pb2_grpc
 import threading
 
 import time
-from inputimeout import inputimeout
+from inputimeout import inputimeout, TimeoutOccurred
 import sys
+import constants
+
+import signal # signal handler for SIGTERM
 
 TIMEOUT = 60 # seconds before auto-log out
 
@@ -117,11 +120,15 @@ def CheckMessages(stub, status, listening):
         print("no listening found. break")
 
 
-    
+global_logged_in = None
+cur_channel = None
+cur_stub = None
 def run():
     """
     Main function to run the client.
     """
+
+    global global_logged_in, cur_channel, cur_stub
 
     # Connect to server
     # input host
@@ -129,67 +136,97 @@ def run():
     if host=="":
         host = "localhost"
     
-    port = 50054
+    # port = 50054
 
-    print(f"Connecting to server at {host}:{port}...")
-    
-    # Begin main loop of connection
-    with grpc.insecure_channel(f"{host}:{port}") as channel:
-        stub = chatroom_pb2_grpc.ChatRoomStub(channel)
-        logged_in = None # username if logged in
+    SERVER_PORT_IDX = 0
+    while SERVER_PORT_IDX < 1: #constants.N_SERVER_PORTS:
+        port = constants.SERVER_PORTS[SERVER_PORT_IDX]
 
-        while True:
-            # Print command prompt with username if logged in
-            if logged_in==None:
-                print("\nYou are not logged in.")
-            else:
-                print("\nYou are logged in as " + logged_in)
-
-            # Get user input
-            try:
-                request = inputimeout(prompt="Enter a command (or \"help\"): ", timeout=TIMEOUT) 
-            except Exception:
-                 # If no user input for TIMEOUT seconds, log out and prompt again
-                if logged_in!=None:
-                    print("Timed out, logging out...")
-                    logged_in = Logout(stub, status=logged_in)
-                continue
-
-            # Menu of possible commands
-            if request == "quit":
-                sys.exit(0)
-                break
-            elif request == "help":
-                print("_________Commands___________")
-                print("help: print this menu")
-                print("create: create a new user")
-                print("login: log in to an existing user")
-                print("logout: log out of the current user")
-                print("list: list all users")
-                print("delete: delete the current user")
-                print("send: send a message to another user")
-                print("check: check for incoming messages")
-                print("quit: quit the program")
-            elif request == "create":
-                CreateUser(stub)
-            elif request == "login":
-                logged_in = Login(stub, status=logged_in)
-            elif request == "logout":
-                logged_in = Logout(stub, status=logged_in)
-            elif request == "list":
-                ListUsers(stub)
-            elif request == "delete":
-                logged_in = DeleteUser(stub, status=logged_in)
-            elif request == "send":
-                SendMessage(stub, status=logged_in)
-            elif request == "check": 
-                # can be private function, as this is done in the background. some users feel the need to manually refresh though
-                CheckMessages(stub, status=logged_in, listening=stub.IncomingStream(chatroom_pb2.User(username=logged_in)))
-            else:
-                print("Invalid command, try again.")
-
+        print(f"Connecting to server at {host}:{port}...")
         
+        # Begin main loop of connection
+        with grpc.insecure_channel(f"{host}:{port}") as channel:
+            cur_channel = channel
+            stub = chatroom_pb2_grpc.ChatRoomStub(channel)
+            global_logged_in = None # username if logged in
+            cur_channel, cur_stub = channel, stub
+
+            try:
+                while True:
+                    # Print command prompt with username if logged in
+                    if global_logged_in==None:
+                        print("\nYou are not logged in.")
+                    else:
+                        print("\nYou are logged in as " + global_logged_in)
+
+                    # Get user input
+                    try:
+                        request = inputimeout(prompt="Enter a command (or \"help\"): ", timeout=TIMEOUT) 
+                    except TimeoutOccurred:
+                        # If no user input for TIMEOUT seconds, log out and prompt again
+                        if global_logged_in!=None:
+                            print("Timed out, logging out...")
+                            global_logged_in = Logout(stub, status=global_logged_in)
+                        continue
+
+                    # Menu of possible commands
+                    if request == "quit":
+                        if global_logged_in != None:
+                            print("Logging out before quitting...")
+                            global_logged_in = Logout(stub, status=global_logged_in)
+                        sys.exit(0)
+                        break
+                    elif request == "help":
+                        print("_________Commands___________")
+                        print("help: print this menu")
+                        print("create: create a new user")
+                        print("login: log in to an existing user")
+                        print("logout: log out of the current user")
+                        print("list: list all users")
+                        print("delete: delete the current user")
+                        print("send: send a message to another user")
+                        print("check: check for incoming messages")
+                        print("quit: quit the program")
+                    elif request == "create":
+                        CreateUser(stub)
+                    elif request == "login":
+                        global_logged_in = Login(stub, status=global_logged_in)
+                    elif request == "logout":
+                        global_logged_in = Logout(stub, status=global_logged_in)
+                    elif request == "list":
+                        ListUsers(stub)
+                    elif request == "delete":
+                        global_logged_in = DeleteUser(stub, status=global_logged_in)
+                    elif request == "send":
+                        SendMessage(stub, status=global_logged_in)
+                    elif request == "check": 
+                        # can be private function, as this is done in the background. some users feel the need to manually refresh though
+                        CheckMessages(stub, status=global_logged_in, listening=stub.IncomingStream(chatroom_pb2.User(username=global_logged_in)))
+                    else:
+                        print("Invalid command, try again.")
+            except grpc._channel._InactiveRpcError as inactive_exn:
+                print("Host is unavailable. Status: ")
+            except Exception as exn:
+                print("Exited with non-timeout exception. See below:")
+                print(exn)
+        SERVER_PORT_IDX += 1
+
+
 
 if __name__ == '__main__':
+    # This ensures that if the client dies, we don't have zombie logins
+    def received_SIG_TO_EXIT(*args, **kwargs):
+        global global_logged_in, cur_channel, cur_stub
+        print(f"RECEIVED SIGNAL {args[0]}. Exiting.")
+        # print(f"Args received: {args}")
+        # print(f"Kwargs received: {kwargs}")
+        print(global_logged_in, cur_channel, cur_stub)
+        if not (global_logged_in is None):
+            assert (not (cur_stub is None)), "cur_stub check failed"
+            assert (not (cur_channel is None)), "cur_channel check failed"
+            global_logged_in = Logout(cur_stub, status=global_logged_in)
+        sys.exit(0)
+    signal.signal(signal.SIGINT, received_SIG_TO_EXIT) # KeyboardInterrupt
+    signal.signal(signal.SIGTERM, received_SIG_TO_EXIT) # kill via terminal
     logging.basicConfig()
     run()
