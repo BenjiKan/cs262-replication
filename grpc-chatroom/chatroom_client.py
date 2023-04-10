@@ -118,6 +118,7 @@ def CheckMessages(stub, status, listening):
             print("\n"+message.message)
     except: # if account is deleted, no error.
         print("no listening found. break")
+    return
 
 
 global_logged_in = None
@@ -141,6 +142,7 @@ def run():
     SERVER_PORT_IDX = 0
     while SERVER_PORT_IDX < 1: #constants.N_SERVER_PORTS:
         port = constants.SERVER_PORTS[SERVER_PORT_IDX]
+        port = constants.SERVER_PORTS[int(input("Input (0,1,2): ").strip())]
 
         print(f"Connecting to server at {host}:{port}...")
         
@@ -205,7 +207,7 @@ def run():
                     else:
                         print("Invalid command, try again.")
             except grpc._channel._InactiveRpcError as inactive_exn:
-                print("Host is unavailable. Status: ")
+                print("Host is unavailable. Status: ", inactive_exn)
             except Exception as exn:
                 print("Exited with non-timeout exception. See below:")
                 print(exn)
@@ -229,4 +231,7 @@ if __name__ == '__main__':
     signal.signal(signal.SIGINT, received_SIG_TO_EXIT) # KeyboardInterrupt
     signal.signal(signal.SIGTERM, received_SIG_TO_EXIT) # kill via terminal
     logging.basicConfig()
-    run()
+    try:
+        run()
+    except EOFError:
+        received_SIG_TO_EXIT("EOFERROR")

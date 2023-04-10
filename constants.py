@@ -1,5 +1,7 @@
+import socket
 # local host IP '127.0.0.1'
-HOST = "127.0.0.1"
+HOST = "localhost"
+HOST = socket.gethostbyname(socket.gethostname())
 
 # Define the port on which you want to connect
 PORT = 9182 
