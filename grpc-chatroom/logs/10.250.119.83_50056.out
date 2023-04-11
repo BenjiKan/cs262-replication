@@ -1,0 +1,47 @@
+CreateUser {  "username": "a",  "password": "a"}
+Login {  "username": "a",  "password": "a"}
+CreateUser {  "username": "b",  "password": "b"}
+Login {  "username": "b",  "password": "b"}
+SendMessage {  "senderusername": "a",  "receiverusername": "b",  "message": "hello!"}
+release_message {  "username": "b"}
+SendMessage {  "senderusername": "b",  "receiverusername": "a",  "message": "hello back!!"}
+DeleteUser {  "username": "b"}
+CreateUser {  "username": "a",  "password": "a"}
+Login {  "username": "a",  "password": "a"}
+CreateUser {  "username": "b",  "password": "b"}
+Login {  "username": "b",  "password": "b"}
+SendMessage {  "senderusername": "a",  "receiverusername": "b",  "message": "hello!"}
+release_message {  "username": "b"}
+SendMessage {  "senderusername": "b",  "receiverusername": "a",  "message": "hello back!!"}
+DeleteUser {  "username": "b"}
+CreateUser {  "username": "b",  "password": "b"}
+Login {  "username": "b",  "password": "b"}
+SendMessage {  "senderusername": "a",  "receiverusername": "b",  "message": "hello!"}
+release_message {  "username": "b"}
+SendMessage {  "senderusername": "b",  "receiverusername": "a",  "message": "hello back!!"}
+DeleteUser {  "username": "b"}
+CreateUser {  "username": "a",  "password": "a"}
+Login {  "username": "a",  "password": "a"}
+CreateUser {  "username": "b",  "password": "b"}
+Login {  "username": "b",  "password": "b"}
+SendMessage {  "senderusername": "a",  "receiverusername": "b",  "message": "hello!"}
+release_message {  "username": "b"}
+SendMessage {  "senderusername": "b",  "receiverusername": "a",  "message": "hello back!!"}
+DeleteUser {  "username": "b"}
+CreateUser {  "username": "b",  "password": "b"}
+Login {  "username": "b",  "password": "b"}
+SendMessage {  "senderusername": "a",  "receiverusername": "b",  "message": "hello!"}
+release_message {  "username": "b"}
+SendMessage {  "senderusername": "b",  "receiverusername": "a",  "message": "hello back!!"}
+DeleteUser {  "username": "b"}
+CreateUser {  "username": "b",  "password": "b"}
+Login {  "username": "b",  "password": "b"}
+SendMessage {  "senderusername": "a",  "receiverusername": "b",  "message": "hello!"}
+SendMessage {  "senderusername": "b",  "receiverusername": "a",  "message": "hello back!!"}
+DeleteUser {  "username": "b"}
+CreateUser {  "username": "b",  "password": "b"}
+Login {  "username": "b",  "password": "b"}
+SendMessage {  "senderusername": "a",  "receiverusername": "b",  "message": "hello!"}
+release_message {  "username": "b"}
+SendMessage {  "senderusername": "b",  "receiverusername": "a",  "message": "hello back!!"}
+DeleteUser {  "username": "b"}

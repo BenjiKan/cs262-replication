@@ -16,10 +16,8 @@ import constants
 import signal
 import sys
 
-import json
 from google.protobuf.json_format import MessageToJson, Parse
-
-import pickle
+import shutil
 
 #############
 ##### Print which process is printing too
@@ -46,18 +44,16 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
     log_lock = threading.Lock() # lock for internal log
     internal_log = []
 
-    def __init__(self, leader_port, is_leader):
+    def __init__(self, leader_port, is_leader, host, port):
         self.leader_port = leader_port
         self.is_leader = is_leader
+        self.host = host
+        self.port = port
 
     def CreateUser(self, request, context):
         """
         Creates a new user with the given username and password.
         """
-        self.log_lock.acquire()
-        new_cmd = ("CreateUser", MessageToJson(request))
-        self.internal_log.append(new_cmd)
-        self.log_lock.release()
         username = request.username
         password = request.password
         if username in self.user_passwords:
@@ -69,18 +65,22 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
         self.messages[username] = []
         self.user_is_online[username] = False
         self.lock.release()
+
+        self.log_lock.acquire()
+        new_cmd = ("CreateUser", MessageToJson(request))
+        self.internal_log.append(new_cmd)
+        self.log(new_cmd)
+        self.log_lock.release()
+
         print(f"{IDNT}[{my_pid}] " + "Users: ", self.user_passwords.keys())
-        # print(self.port) <<< MM: This won't work. Will delete and refactor.
+
         return chatroom_pb2.requestReply(status=1, message=f"User {username} created successfully")
 
     def Login(self, request, context):
         """
         Logs in the user with the given username and password.
         """
-        self.log_lock.acquire()
-        new_cmd = ("Login", MessageToJson(request))
-        self.internal_log.append(new_cmd)
-        self.log_lock.release()
+
         username = request.username
         password = request.password
         if username not in self.user_passwords:
@@ -93,6 +93,13 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
             self.lock.acquire()
             self.user_is_online[username] = True
             self.lock.release()
+
+            self.log_lock.acquire()
+            new_cmd = ("Login", MessageToJson(request))
+            self.log(new_cmd)
+            self.internal_log.append(new_cmd)
+            self.log_lock.release()
+
             print(f"{IDNT}[{my_pid}] " + username + " logged in")
             return chatroom_pb2.requestReply(status=1, message=f"User {username} login successful")
 
@@ -100,10 +107,6 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
         """
         Logs out the user with the given username.
         """
-        self.log_lock.acquire()
-        new_cmd = ("Logout", MessageToJson(request))
-        self.internal_log.append(new_cmd)
-        self.log_lock.release()
         username = request.username
         if username not in self.user_passwords:
             return chatroom_pb2.requestReply(status=0, message=f"User {username} does not exist")
@@ -113,6 +116,13 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
             self.lock.acquire()
             self.user_is_online[username] = False
             self.lock.release()
+
+            self.log_lock.acquire()
+            new_cmd = ("Logout", MessageToJson(request))
+            self.log(new_cmd)
+            self.internal_log.append(new_cmd)
+            self.log_lock.release()
+
             print(f"{IDNT}[{my_pid}] " + username + " logged out")
             return chatroom_pb2.requestReply(status=1, message=f"User {username} logged out successfully")
 
@@ -120,10 +130,6 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
         """
         Lists all users matching prefix provided, or lists all users.
         """
-        self.log_lock.acquire()
-        new_cmd = ("ListUsers", MessageToJson(request))
-        self.internal_log.append(new_cmd)
-        self.log_lock.release()
         if request.partialusername == "":
             print(f"{IDNT}[{my_pid}] " + "Returning all users")
             return chatroom_pb2.requestReply(status=1, message=" ".join(self.user_passwords.keys()))
@@ -134,6 +140,13 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
             for username in self.user_passwords.keys():
                 if partial.match(username):
                     matching_users.append(username)
+            
+            self.log_lock.acquire()
+            new_cmd = ("ListUsers", MessageToJson(request))
+            self.internal_log.append(new_cmd)
+            self.log(new_cmd)
+            self.log_lock.release()
+
             if len(matching_users) == 0:
                 return chatroom_pb2.requestReply(status=0, message="No matching users found")
             else:
@@ -143,10 +156,6 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
         """
         Deletes the user with the given username.
         """
-        self.log_lock.acquire()
-        new_cmd = ("DeleteUser", MessageToJson(request))
-        self.internal_log.append(new_cmd)
-        self.log_lock.release()
         username = request.username
         if username not in self.user_passwords:
             return chatroom_pb2.requestReply(status=0, message=f"User {username} does not exist")
@@ -158,6 +167,13 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
             del self.messages[username]
             del self.user_is_online[username]
             self.lock.release()
+
+            self.log_lock.acquire()
+            new_cmd = ("DeleteUser", MessageToJson(request))
+            self.internal_log.append(new_cmd)
+            self.log(new_cmd)
+            self.log_lock.release()
+
             print(f"{IDNT}[{my_pid}] " + "Deleted user " + username + " successfully")
             print(f"{IDNT}[{my_pid}] " + "Users: ", self.user_passwords.keys())
             return chatroom_pb2.requestReply(status=1, message=f"User {username} deleted successfully")
@@ -166,10 +182,6 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
         """
         Sends a message to the given user.
         """
-        self.log_lock.acquire()
-        new_cmd = ("SendMessage", MessageToJson(request))
-        self.internal_log.append(new_cmd)
-        self.log_lock.release()
         senderusername = request.senderusername
         receiverusername = request.receiverusername
         message = "\033[92m" + senderusername + "\033[0m" + " says: " + request.message # embed sender username in message
@@ -180,6 +192,13 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
             self.lock.acquire()
             self.messages[receiverusername].append(message)
             self.lock.release()    
+    
+            self.log_lock.acquire()
+            new_cmd = ("SendMessage", MessageToJson(request))
+            self.internal_log.append(new_cmd)
+            self.log(new_cmd)
+            self.log_lock.release()
+
             print(f"{IDNT}[{my_pid}] " + f"Queuing message for user {receiverusername}: \"{message}\"")
             return chatroom_pb2.requestReply(status=1, message=f"User {receiverusername} is offline, message queued")
         # if user is online, send message
@@ -187,6 +206,13 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
             self.lock.acquire()
             self.messages[receiverusername].append(message)
             self.lock.release()
+        
+            self.log_lock.acquire()
+            new_cmd = ("SendMessage", MessageToJson(request))
+            self.internal_log.append(new_cmd)
+            self.log(new_cmd)
+            self.log_lock.release()
+
             return chatroom_pb2.requestReply(status=1, message=f"User {receiverusername} is online, message sent successfully")
 
     def IncomingStream(self, request, context):
@@ -204,12 +230,14 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
                     self.lock.acquire()
                     message = self.messages[username].pop(0)
                     self.lock.release()
-                    print(f"{IDNT}[{my_pid}] " + "Sending message to user %s: \"%s\"" % (username, message))
+                    
                     self.log_lock.acquire()
-                    new_cmd = ("release_message", MessageToJson(username))
+                    new_cmd = ("release_message", MessageToJson(request))
+                    self.log(new_cmd)
                     self.internal_log.append(new_cmd)
                     self.log_lock.release()
-                    # self.pickle_dump()
+
+                    print(f"{IDNT}[{my_pid}] " + "Sending message to user %s: \"%s\"" % (username, message))
                     yield chatroom_pb2.Message(senderusername="", receiverusername=username, message=message)
                 time.sleep(0.1)
             logging.info(f"Stream closed for user {request.username}")
@@ -217,23 +245,22 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
             # catch errors immediately after an account is deleted
             print(f"{IDNT}[{my_pid}] " + "no stream")
         
-    def pickle_dump(self):
-        """
-        Pickles the serverstate variables.
-        """
-        with open(f'{self.host}_{self.port}_users.pickle', 'wb') as f:
-            pickle.dump(self.user_passwords, f)
-        with open(f'{self.host}_{self.port}_messages.pickle', 'wb') as f:
-            pickle.dump(self.messages, f)
-        with open(f'{self.host}_{self.port}_online.pickle', 'wb') as f:
-            pickle.dump(self.user_is_online, f)
+    # def pickle_dump(self):
+    #     """
+    #     Pickles the serverstate variables.
+    #     """
+    #     with open(f'{self.host}_{self.port}_users.pickle', 'wb') as f:
+    #         pickle.dump(self.user_passwords, f)
+    #     with open(f'{self.host}_{self.port}_messages.pickle', 'wb') as f:
+    #         pickle.dump(self.messages, f)
+    #     with open(f'{self.host}_{self.port}_online.pickle', 'wb') as f:
+    #         pickle.dump(self.user_is_online, f)
 
     def srv_GetNewChanges(self, request, context):
         """
         Used by backup to request new changes from leader. Each backup opens one
         for each machine higher up in the hierarchy
         """
-        # logging.info(f"Internal steram opened for server")
         try:
             for cmd in self.internal_log:
                 nxt = chatroom_pb2.internalRequest()
@@ -262,26 +289,20 @@ class ChatRoom(chatroom_pb2_grpc.ChatRoomServicer):
         self.lock.acquire()
         message = self.messages[username].pop(0)
         self.lock.release()
+        yield chatroom_pb2.Message(senderusername="", receiverusername=username, message=message)
 
-    def log(host, port, op):
+    def log(self, cmd):
         """
         Updates the log file with the current state of the server.
         """
         if not os.path.exists('logs'):
             os.makedirs('logs')
 
-        # maybe save list of user/passwords database separately from logs of actions
-
-        with open(f'logs/{host}_{port}.out', 'w') as f:
-            # operations for log in, log out, send message, list users, delete user
-
-
-            if op == "user":
-                f.write("Users: " + str(server.user_passwords.keys()) + "")
-
-            f.write("Users: " + str(server.user_passwords.keys()) + "")
-
-            f.close()
+        f = open(f'logs/{self.host}_{self.port}.out', 'a')
+        f.write(cmd[0]+" "+cmd[1].replace("\n", "")+"\n")
+        f.flush()
+        f.close()
+        return
 
 
 ################################
@@ -295,7 +316,7 @@ class ServerObject():
         self.processed_cmds = []
         self.ldrp, self.isl = leader_port, is_leader
         self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-        self.chatroom = ChatRoom(leader_port, is_leader)
+        self.chatroom = ChatRoom(leader_port, is_leader, self.host, self.port)
         chatroom_pb2_grpc.add_ChatRoomServicer_to_server(self.chatroom, self.server)
         self.server.add_insecure_port('[::]:' + self.port)
         self.main_stub = None
@@ -307,6 +328,33 @@ class ServerObject():
         
         self.main_channel = grpc.insecure_channel(f"{self.host}:{self.port}")
         self.main_stub = chatroom_pb2_grpc.ChatRoomStub(self.main_channel)
+
+        # if previous history exists, find longest
+        if os.path.exists(f'logs/{self.host}_{self.port}.out'):
+
+            # persistence: find longest history
+            longest = 0
+            longest_file = f'logs/{self.host}_{self.port}.out'
+            for file in os.listdir('logs'):
+                with open(f'logs/{file}') as f:
+                    if len(f.readlines()) > longest:
+                        longest = len(f.readlines())
+                        longest_file = f'logs/{file}'
+            # replace current server history with the longest
+            try:
+                shutil.copyfile(longest_file, f'logs/{self.host}_{self.port}.out')
+                print("replaced", f'logs/{self.host}_{self.port}.out', "with", longest_file)
+            except:
+                pass
+
+            # replay history
+            with open(f'logs/{self.host}_{self.port}.out') as f:
+                for line in f.readlines():
+                    nxt = chatroom_pb2.internalRequest()
+                    nxt.command_type, nxt.params  = line.split(" ", 1)
+                    self.run_cmd(nxt)
+        
+        # continue onto main loop
         self.run_loop()
         self.server.wait_for_termination()
 
